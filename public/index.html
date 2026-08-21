@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LearnOrNot · 学不学</title>
+<link rel="stylesheet" href="/vendor/katex/katex.min.css">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/api/custom.css">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+</head>
+<body>
+<header id="topbar">
+  <a class="brand" href="#/shelf"><span class="brand-en">LearnOrNot</span><span class="brand-cn">学不学</span></a>
+  <nav>
+    <a href="#/shelf" data-nav="shelf">书架</a>
+    <a href="#/reviews" data-nav="reviews">复习<span id="review-badge" class="nav-badge hidden"></span></a>
+    <a href="#/stats" data-nav="stats">统计</a>
+    <a href="#/terms" data-nav="terms">术语卡</a>
+    <a href="#/highlights" data-nav="highlights">划线</a>
+    <a href="#/wrong" data-nav="wrong">错题本</a>
+    <a href="#/settings" data-nav="settings" id="nav-settings">设置</a>
+  </nav>
+  <button id="search-toggle" title="全文搜索（⌘K）">⌕</button>
+  <div id="pomo" class="pomo collapsed">
+    <button id="pomo-pill" title="番茄钟"><span class="pomo-pill-glyph">◔</span><span id="pomo-pill-time">25:00</span></button>
+    <div class="pomo-panel hidden" id="pomo-panel">
+      <div class="pomo-modes">
+        <button class="pomo-mode active" data-min="25"><span>专注</span><b>25</b></button>
+        <button class="pomo-mode" data-min="5"><span>短休</span><b>5</b></button>
+        <button class="pomo-mode" data-min="15"><span>长休</span><b>15</b></button>
+      </div>
+      <div class="pomo-time" id="pomo-time">25:00</div>
+      <div class="pomo-label" id="pomo-label">准备专注</div>
+      <div class="pomo-actions">
+        <button class="primary" id="pomo-toggle">开始</button>
+        <button class="ghost" id="pomo-reset">重置</button>
+      </div>
+      <div class="pomo-today" id="pomo-today"></div>
+    </div>
+  </div>
+  <button id="global-chat-toggle" title="随时问老师">问老师</button>
+  <div id="provider-badge" title="当前模型"></div>
+</header>
+<main id="app"><div class="loading">加载中…</div></main>
+
+<div id="search-overlay" class="hidden">
+  <div class="search-panel">
+    <div class="search-head">
+      <span class="search-glyph">⌕</span>
+      <input id="search-input" type="text" placeholder="搜讲义、术语、划线、错题…" autocomplete="off">
+      <button id="search-close" title="关闭">✕</button>
+    </div>
+    <div id="search-results"></div>
+  </div>
+</div>
+
+<div id="model-menu" class="model-menu hidden"></div>
+<aside id="global-chat" class="global-chat"></aside>
+
+<div id="ask-pop" class="hidden">
+  <button id="hl-pop-btn">划线</button>
+  <span class="pop-sep"></span>
+  <button id="ask-pop-btn">就这段提问</button>
+</div>
+
+<div id="modal" class="hidden">
+  <div class="modal-mask"></div>
+  <div class="modal-box" id="modal-box"></div>
+</div>
+
+<div id="toast" class="hidden"></div>
+<script src="/vendor/katex/katex.min.js"></script>
+<script src="/vendor/katex/contrib/auto-render.min.js"></script>
+<script src="/tts.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

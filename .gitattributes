@@ -1,0 +1,2 @@
+# Preserve vendored KaTeX release files byte-for-byte, including upstream whitespace.
+public/vendor/katex/** -whitespace

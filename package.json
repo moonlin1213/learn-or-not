@@ -1,0 +1,48 @@
+{
+  "name": "learnornot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "学不学 LearnOrNot：本地教材私教——上传教材，AI 拆课带学、出题批改、艾宾浩斯复习，可接云端老师，也可接本地陪伴 agent",
+  "scripts": {
+    "start": "node server/index.js",
+    "app": "electron .",
+    "test": "node --test tests/*.test.mjs",
+    "dist": "electron-builder --mac --dir"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "^0.82.1",
+    "adm-zip": "^0.6.0",
+    "busboy": "^1.6.0",
+    "fast-xml-parser": "^5.11.0",
+    "katex": "^0.18.4",
+    "mammoth": "^1.12.1",
+    "pdf-parse": "^1.1.1",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3"
+  },
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.learnornot.app",
+    "productName": "LearnOrNot",
+    "files": [
+      "electron/**",
+      "server/**",
+      "public/**",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.education",
+      "icon": "electron/icon.icns",
+      "identity": null,
+      "hardenedRuntime": false
+    },
+    "directories": {
+      "output": "dist"
+    }
+  },
+  "license": "AGPL-3.0-only"
+}

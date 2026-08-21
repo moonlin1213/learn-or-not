@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="#D8D1C3"/>
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="none" stroke="#B9AF9D" stroke-width="3"/>
+  <path d="M256 168 C220 144 172 138 128 146 L128 350 C172 342 220 348 256 372 C292 348 340 342 384 350 L384 146 C340 138 292 144 256 168 Z" fill="#976666"/>
+  <path d="M256 176 C224 154 182 150 144 157 L144 340 C182 333 224 337 256 359 Z" fill="#EDE8DE"/>
+  <path d="M256 176 C288 154 330 150 368 157 L368 340 C330 333 288 337 256 359 Z" fill="#E4DDCF"/>
+  <g stroke="#C9BFAE" stroke-width="6" stroke-linecap="round">
+    <line x1="164" y1="200" x2="234" y2="209"/>
+    <line x1="164" y1="232" x2="234" y2="241"/>
+    <line x1="164" y1="264" x2="234" y2="273"/>
+    <line x1="164" y1="296" x2="224" y2="304"/>
+    <line x1="278" y1="209" x2="348" y2="200"/>
+    <line x1="278" y1="241" x2="348" y2="232"/>
+    <line x1="278" y1="273" x2="348" y2="264"/>
+    <line x1="278" y1="304" x2="338" y2="296"/>
+  </g>
+  <path d="M326 146 L326 232 L344 214 L362 232 L362 146 Z" fill="#A9B7AA"/>
+</svg>

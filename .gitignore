@@ -1,0 +1,12 @@
+node_modules/
+dist/
+data/
+.npm-cache/
+.DS_Store
+*.log
+oauth-credentials.json*
+.tmp-*/
+
+# 本机覆盖配置（代理/数据目录，勿入库）
+local.config.json
+.npmrc

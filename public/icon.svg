@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#E4D4B2"/>
+  <rect x="6" y="6" width="500" height="500" rx="106" fill="none" stroke="#C9A227" stroke-width="8"/>
+  <text x="256" y="372" text-anchor="middle" font-size="320" fill="#B4632F" font-family="Noto Sans Egyptian Hieroglyphs">𓃠</text>
+</svg>
