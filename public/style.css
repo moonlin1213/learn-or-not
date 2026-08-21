@@ -1,3 +1,9 @@
+/* 京华老宋体：本机可选字体，字体文件不随公开源码分发 */
+@font-face {
+  font-family: "JingHwa OldSong";
+  src: local("JingHwa OldSong"), url("/fonts/jinghua.woff2") format("woff2");
+  font-display: swap;
+}
 /* Cormorant Garamond（标题/计数/数字专用，开启老式数字） */
 @font-face {
   font-family: "Cormorant Garamond";
@@ -44,7 +50,7 @@
   --sage-deep: #647A66;
   --tts-accent: #9B7370;
   --tts-accent-soft: #D2B7B0;
-  --serif: "Cormorant Garamond", "Songti SC", "Noto Serif SC", "Source Han Serif SC", Georgia, "Times New Roman", serif;
+  --serif: "Cormorant Garamond", "JingHwa OldSong", "Songti SC", "Noto Serif SC", "Source Han Serif SC", Georgia, "Times New Roman", serif;
   --sans: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --mono: "SF Mono", Menlo, monospace;
   --radius: 10px;

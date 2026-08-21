@@ -10,3 +10,6 @@ oauth-credentials.json*
 # 本机覆盖配置（代理/数据目录，勿入库）
 local.config.json
 .npmrc
+
+# 本机授权字体，仅供本地打包，不随公开源码分发
+public/fonts/jinghua.woff2
