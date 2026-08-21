@@ -561,7 +561,10 @@ details.card > summary,
 }
 .tts-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint); flex: none; }
 #tts-bar.playing .tts-dot { background: var(--rose); animation: tts-pulse 1.6s ease-in-out infinite; }
+#tts-bar.loading .tts-dot { background: var(--tts-accent); animation: tts-loading 1s ease-in-out infinite; }
+#tts-bar.loading #tts-seg { color: var(--tts-accent); }
 @keyframes tts-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.72); } }
+@keyframes tts-loading { 0%, 100% { opacity: .35; transform: scale(.72); } 50% { opacity: 1; transform: scale(1.18); } }
 ::highlight(tts-seek) { background-color: color-mix(in srgb, var(--tts-accent-soft) 52%, transparent); }
 .tts-locate-flash { animation: tts-locate-flash 1.45s var(--ease); border-radius: 4px; }
 @keyframes tts-locate-flash {

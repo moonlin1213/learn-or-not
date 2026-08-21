@@ -154,10 +154,26 @@ window.TTS = (() => {
     if (!j.buffers[i]) {
       j.buffers[i] = fetchSynth(j.chunks[i])
         .then(ab => ac.decodeAudioData(ab))
-        .then(buf => { j.durations[i] = buf.duration; return buf; });
+        .then(buf => {
+          j.durations[i] = buf.duration;
+          j.ready[i] = true;
+          return buf;
+        });
       j.buffers[i].catch(() => {}); // 预取失败先吞掉，轮到它时会重试
     }
     return j.buffers[i];
+  }
+
+  // 第一段优先开口，同时用三个后台工位预热后续段；常见四段课程可全部并行准备。
+  function warmBuffers(j) {
+    let next = 1;
+    const worker = async () => {
+      while (!j.cancelled && j === job && next < j.chunks.length) {
+        const i = next++;
+        try { await ensureBuffer(j, i); } catch { /* 正式播放时仍会按原策略重试 */ }
+      }
+    };
+    Promise.allSettled([worker(), worker(), worker()]);
   }
 
   function fractionAt(j, index, within = 0) {
@@ -237,13 +253,14 @@ window.TTS = (() => {
     for (const w of weights) prefixWeights.push(prefixWeights[prefixWeights.length - 1] + w);
     job = {
       chunks, rootEl, weights, prefixWeights, totalWeight: prefixWeights.at(-1),
-      buffers: [], durations: [], sources: new Set(), timeline: [],
+      buffers: [], durations: [], ready: [], sources: new Set(), timeline: [],
       cancelled: false, state: 'loading', audible: 0, total: chunks.length,
-      generation: 1, progress: 0,
+      generation: 1, progress: 0, seekWaiting: false,
     };
     updateUI();
     startProgressLoop();
     run(job, 0, 0, job.generation);
+    warmBuffers(job);
   }
 
   function start(rootEl) {
@@ -314,13 +331,15 @@ window.TTS = (() => {
     clearScheduled(j);
     j.audible = index + 1;
     j.progress = target;
-    if (!wasPaused) j.state = 'loading';
+    j.seekWaiting = !j.ready[index];
+    if (!wasPaused) j.state = j.seekWaiting ? 'loading' : 'playing';
     paintProgress(target);
     updateUI();
     revealChunkPosition(j, index, within);
     try {
       const buf = await ensureBuffer(j, index);
       if (j !== job || j.cancelled || generation !== j.generation) return;
+      j.seekWaiting = false;
       if (wasPaused) {
         j.state = 'paused';
         await ac.suspend();
@@ -346,6 +365,7 @@ window.TTS = (() => {
     if (!job) { bar.classList.add('hidden'); paintProgress(0); return; }
     bar.classList.remove('hidden');
     bar.classList.toggle('playing', job.state === 'playing');
+    bar.classList.toggle('loading', job.state === 'loading');
     const pauseBtn = document.getElementById('tts-pause');
     const seg = document.getElementById('tts-seg');
     if (pauseBtn) {
@@ -354,7 +374,9 @@ window.TTS = (() => {
       pauseBtn.disabled = job.state === 'loading';
     }
     if (seg) seg.textContent = job.state === 'loading'
-      ? (job.audible ? `正在跳到第 ${job.audible}/${job.total} 段…` : '合成中…')
+      ? (job.seekWaiting
+        ? `首次定位第 ${job.audible}/${job.total} 段 · 正在生成这段语音…`
+        : '正在准备第一段语音…')
       : `第 ${Math.max(job.audible, 1)}/${job.total} 段${job.state === 'paused' ? ' · 已暂停' : ''}`;
     updateProgressUI();
   }

@@ -29,4 +29,8 @@ test('lesson TTS exposes a styled progress control with real audio seeking', () 
   assert.match(ttsJs, /scrollIntoView\(\{ behavior: 'smooth', block: 'center' \}\)/);
   assert.match(css, /::highlight\(tts-seek\)/);
   assert.match(css, /--tts-accent:\s*#A07C45/);
+  assert.match(ttsJs, /function warmBuffers\(j\)/);
+  assert.match(ttsJs, /Promise\.allSettled\(\[worker\(\), worker\(\), worker\(\)\]\)/);
+  assert.match(ttsJs, /首次定位第 \$\{job\.audible\}\/\$\{job\.total\} 段 · 正在生成这段语音/);
+  assert.match(css, /#tts-bar\.loading \.tts-dot/);
 });
