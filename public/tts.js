@@ -31,7 +31,11 @@ window.TTS = (() => {
   if (!RATES.some(r => r.v === settings.rate)) settings.rate = DEFAULTS.rate;
 
   let ac = null;   // AudioContext（懒创建，首次点击即解锁自动播放策略）
-  let job = null;  // { chunks, buffers[], sources:Set, cancelled, state, audible, total }
+  let job = null;  // { chunks, buffers[], sources:Set, timeline[], weights[], state, audible, total }
+  let progressRaf = null;
+  let progressDragging = false;
+  let locatorTimer = null;
+  let locatorBlock = null;
 
   // ---------- 文本提取与分段 ----------
   function extractText(root) {
@@ -69,6 +73,69 @@ window.TTS = (() => {
     return out;
   }
 
+  // ---------- 跳转后定位原文 ----------
+  function clearLocator() {
+    clearTimeout(locatorTimer);
+    locatorTimer = null;
+    try { window.CSS?.highlights?.delete('tts-seek'); } catch {}
+    locatorBlock?.classList.remove('tts-locate-flash');
+    locatorBlock = null;
+  }
+
+  function findChunkRange(root, chunk, within) {
+    if (!root) return null;
+    const nodes = [];
+    const chars = [];
+    const positions = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      if (node.parentElement?.closest('.katex, pre, table, button, script, style')) continue;
+      nodes.push(node);
+      for (let i = 0; i < node.nodeValue.length; i++) {
+        if (/\s/.test(node.nodeValue[i])) continue;
+        chars.push(node.nodeValue[i]);
+        positions.push({ node, offset: i });
+      }
+    }
+    if (!nodes.length) return null;
+    const flat = chars.join('');
+    const source = chunk.replace(/\s+/g, '');
+    if (!source) return null;
+    const start = Math.min(source.length - 1, Math.max(0, Math.floor(source.length * within)));
+    const starts = [start, Math.max(0, start - 12), 0];
+    for (const from of starts) {
+      const maxLength = Math.min(34, source.length - from);
+      for (let length = maxLength; length >= 10; length -= 6) {
+        const found = flat.indexOf(source.slice(from, from + length));
+        if (found < 0) continue;
+        const first = positions[found];
+        const last = positions[found + length - 1];
+        const range = document.createRange();
+        range.setStart(first.node, first.offset);
+        range.setEnd(last.node, last.offset + 1);
+        return range;
+      }
+    }
+    return null;
+  }
+
+  function revealChunkPosition(j, index, within) {
+    clearLocator();
+    const range = findChunkRange(j.rootEl, j.chunks[index], within);
+    if (!range) return;
+    const startEl = range.startContainer.parentElement;
+    locatorBlock = startEl?.closest('p, li, blockquote, h1, h2, h3, h4') || startEl;
+    try {
+      if (window.CSS?.highlights && window.Highlight) {
+        window.CSS.highlights.set('tts-seek', new window.Highlight(range));
+      }
+    } catch {}
+    locatorBlock?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    requestAnimationFrame(() => locatorBlock?.classList.add('tts-locate-flash'));
+    locatorTimer = setTimeout(clearLocator, 2400);
+  }
+
   // ---------- 合成与播放 ----------
   async function fetchSynth(text) {
     const r = await fetch('/api/tts', {
@@ -85,34 +152,73 @@ window.TTS = (() => {
 
   function ensureBuffer(j, i) {
     if (!j.buffers[i]) {
-      j.buffers[i] = fetchSynth(j.chunks[i]).then(ab => ac.decodeAudioData(ab));
+      j.buffers[i] = fetchSynth(j.chunks[i])
+        .then(ab => ac.decodeAudioData(ab))
+        .then(buf => { j.durations[i] = buf.duration; return buf; });
       j.buffers[i].catch(() => {}); // 预取失败先吞掉，轮到它时会重试
     }
     return j.buffers[i];
   }
 
-  async function run(j) {
+  function fractionAt(j, index, within = 0) {
+    const before = j.prefixWeights[index] || 0;
+    return Math.min(1, Math.max(0, (before + j.weights[index] * within) / j.totalWeight));
+  }
+
+  function locateFraction(j, fraction) {
+    const target = Math.min(1, Math.max(0, fraction)) * j.totalWeight;
+    let index = j.weights.length - 1;
+    for (let i = 0; i < j.weights.length; i++) {
+      if (target <= j.prefixWeights[i + 1]) { index = i; break; }
+    }
+    const within = Math.min(1, Math.max(0, (target - j.prefixWeights[index]) / j.weights[index]));
+    return { index, within };
+  }
+
+  function currentFraction(j) {
+    if (!j || !ac) return 0;
+    const now = ac.currentTime;
+    const active = j.timeline.find(x => x.generation === j.generation && now >= x.start && now < x.end);
+    if (!active) return j.progress || 0;
+    const within = Math.min(1, Math.max(0, (active.offset + now - active.start) / active.duration));
+    return fractionAt(j, active.index, within);
+  }
+
+  function clearScheduled(j) {
+    for (const src of j.sources) { try { src.stop(); } catch {} }
+    j.sources.clear();
+    j.timeline = [];
+  }
+
+  async function run(j, from = 0, firstOffset = 0, generation = j.generation) {
     let nextStart = 0;
-    for (let i = 0; i < j.chunks.length; i++) {
-      if (j.cancelled) return;
+    for (let i = from; i < j.chunks.length; i++) {
+      if (j.cancelled || generation !== j.generation) return;
       let buf;
       try { buf = await ensureBuffer(j, i); }
       catch {
         try { delete j.buffers[i]; buf = await ensureBuffer(j, i); } // 轮到这段才失败：重试一次
-        catch (e) { if (!j.cancelled) fail(e); return; }
+        catch (e) { if (!j.cancelled && generation === j.generation) fail(e); return; }
       }
-      if (j.cancelled) return;
+      if (j.cancelled || generation !== j.generation) return;
       const src = ac.createBufferSource();
+      const offset = i === from ? Math.min(Math.max(0, firstOffset), Math.max(0, buf.duration - .01)) : 0;
       src.buffer = buf;
       src.connect(ac.destination);
       const t = Math.max(ac.currentTime + 0.03, nextStart);
-      src.start(t);
-      nextStart = t + buf.duration;
+      src.start(t, offset);
+      nextStart = t + buf.duration - offset;
       j.sources.add(src);
-      if (i === 0) { j.state = 'playing'; j.audible = 1; }
+      j.timeline.push({ source: src, index: i, start: t, end: nextStart, offset, duration: buf.duration, generation });
+      if (i === from) {
+        if (j.state !== 'paused') j.state = 'playing';
+        j.audible = i + 1;
+        j.progress = fractionAt(j, i, offset / buf.duration);
+      }
       src.onended = () => {
         j.sources.delete(src);
-        if (j.cancelled || j !== job) return;
+        if (j.cancelled || j !== job || generation !== j.generation) return;
+        j.progress = fractionAt(j, i, 1);
         if (i + 1 >= j.total) { stop(); } // 最后一段播完，自然收工
         else { j.audible = i + 2; updateUI(); }
       };
@@ -121,28 +227,41 @@ window.TTS = (() => {
     }
   }
 
-  function speak(chunks) {
+  function speak(chunks, rootEl = null) {
     stop();
     if (!chunks.length) { toast('这一页没有可朗读的文字'); return; }
     ac = ac || new (window.AudioContext || window.webkitAudioContext)();
     ac.resume();
-    job = { chunks, buffers: [], sources: new Set(), cancelled: false, state: 'loading', audible: 0, total: chunks.length };
+    const weights = chunks.map(c => Math.max(1, c.replace(/\s+/g, '').length));
+    const prefixWeights = [0];
+    for (const w of weights) prefixWeights.push(prefixWeights[prefixWeights.length - 1] + w);
+    job = {
+      chunks, rootEl, weights, prefixWeights, totalWeight: prefixWeights.at(-1),
+      buffers: [], durations: [], sources: new Set(), timeline: [],
+      cancelled: false, state: 'loading', audible: 0, total: chunks.length,
+      generation: 1, progress: 0,
+    };
     updateUI();
-    run(job);
+    startProgressLoop();
+    run(job, 0, 0, job.generation);
   }
 
   function start(rootEl) {
     const text = extractText(rootEl);
     if (text.length < 4) { toast('这一页没有可朗读的文字'); return; }
-    speak(chunkText(text));
+    speak(chunkText(text), rootEl);
   }
 
   function stop() {
+    if (progressRaf) cancelAnimationFrame(progressRaf);
+    progressRaf = null;
+    clearLocator();
     if (!job) return;
     job.cancelled = true;
     try { ac && ac.resume(); } catch {}
-    for (const s of job.sources) { try { s.stop(); } catch {} }
+    clearScheduled(job);
     job = null;
+    progressDragging = false;
     updateUI();
   }
 
@@ -158,6 +277,63 @@ window.TTS = (() => {
     updateUI();
   }
 
+  function paintProgress(fraction, writeValue = true) {
+    const input = document.getElementById('tts-progress');
+    const percent = document.getElementById('tts-percent');
+    const value = Math.round(Math.min(1, Math.max(0, fraction)) * 1000);
+    if (input) {
+      if (writeValue) input.value = String(value);
+      input.style.setProperty('--tts-progress', `${value / 10}%`);
+    }
+    if (percent) percent.textContent = `${Math.round(value / 10)}%`;
+  }
+
+  function updateProgressUI() {
+    if (!job || progressDragging) return;
+    job.progress = currentFraction(job);
+    paintProgress(job.progress);
+  }
+
+  function startProgressLoop() {
+    if (progressRaf) cancelAnimationFrame(progressRaf);
+    const tick = () => {
+      if (!job) { progressRaf = null; return; }
+      updateProgressUI();
+      progressRaf = requestAnimationFrame(tick);
+    };
+    progressRaf = requestAnimationFrame(tick);
+  }
+
+  async function seekTo(fraction) {
+    const j = job;
+    if (!j) return;
+    const target = Math.min(1, Math.max(0, fraction));
+    const { index, within } = locateFraction(j, target);
+    const wasPaused = j.state === 'paused';
+    const generation = ++j.generation;
+    clearScheduled(j);
+    j.audible = index + 1;
+    j.progress = target;
+    if (!wasPaused) j.state = 'loading';
+    paintProgress(target);
+    updateUI();
+    revealChunkPosition(j, index, within);
+    try {
+      const buf = await ensureBuffer(j, index);
+      if (j !== job || j.cancelled || generation !== j.generation) return;
+      if (wasPaused) {
+        j.state = 'paused';
+        await ac.suspend();
+      } else {
+        j.state = 'playing';
+        await ac.resume();
+      }
+      run(j, index, buf.duration * within, generation);
+    } catch (e) {
+      if (j === job && generation === j.generation) fail(e);
+    }
+  }
+
   // ---------- UI ----------
   function updateUI() {
     const toggle = document.getElementById('tts-toggle');
@@ -167,7 +343,7 @@ window.TTS = (() => {
     }
     const bar = document.getElementById('tts-bar');
     if (!bar) return;
-    if (!job) { bar.classList.add('hidden'); return; }
+    if (!job) { bar.classList.add('hidden'); paintProgress(0); return; }
     bar.classList.remove('hidden');
     bar.classList.toggle('playing', job.state === 'playing');
     const pauseBtn = document.getElementById('tts-pause');
@@ -178,8 +354,9 @@ window.TTS = (() => {
       pauseBtn.disabled = job.state === 'loading';
     }
     if (seg) seg.textContent = job.state === 'loading'
-      ? '合成中…'
+      ? (job.audible ? `正在跳到第 ${job.audible}/${job.total} 段…` : '合成中…')
       : `第 ${Math.max(job.audible, 1)}/${job.total} 段${job.state === 'paused' ? ' · 已暂停' : ''}`;
+    updateProgressUI();
   }
 
   // 课节页渲染后由 app.js 调用：接线按钮（DOM 不存在时静默跳过）
@@ -194,6 +371,19 @@ window.TTS = (() => {
     };
     document.getElementById('tts-pause')?.addEventListener('click', togglePause);
     document.getElementById('tts-stop')?.addEventListener('click', stop);
+    const progress = document.getElementById('tts-progress');
+    if (progress) {
+      progress.addEventListener('pointerdown', () => { progressDragging = true; });
+      progress.addEventListener('pointercancel', () => { progressDragging = false; });
+      progress.addEventListener('input', () => {
+        progressDragging = true;
+        paintProgress(Number(progress.value) / 1000, false);
+      });
+      progress.addEventListener('change', () => {
+        progressDragging = false;
+        seekTo(Number(progress.value) / 1000);
+      });
+    }
     updateUI();
   }
 

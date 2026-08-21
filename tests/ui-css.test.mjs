@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const css = fs.readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');
+const appJs = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+const ttsJs = fs.readFileSync(new URL('../public/tts.js', import.meta.url), 'utf8');
 
 test('toast entrance animation preserves horizontal centering', () => {
   const keyframes = css.match(/@keyframes\s+toast-rise\s*\{([\s\S]*?)\n\}/)?.[1] || '';
@@ -12,4 +14,19 @@ test('toast entrance animation preserves horizontal centering', () => {
   const toastRule = css.match(/#toast\s*\{([\s\S]*?)\}/)?.[1] || '';
   assert.match(toastRule, /left:\s*50%/);
   assert.match(toastRule, /animation:\s*toast-rise\b/);
+});
+
+test('lesson TTS exposes a styled progress control with real audio seeking', () => {
+  assert.match(appJs, /id="tts-progress"[^>]*type="range"/);
+  assert.match(appJs, /id="tts-percent"/);
+  assert.match(css, /#tts-progress::\-webkit-slider-runnable-track/);
+  assert.match(css, /#tts-progress::\-webkit-slider-thumb/);
+  assert.match(ttsJs, /async function seekTo\(fraction\)/);
+  assert.match(ttsJs, /src\.start\(t, offset\)/);
+  assert.match(ttsJs, /progress\.addEventListener\('change',[\s\S]*?seekTo\(Number\(progress\.value\) \/ 1000\)/);
+  assert.match(ttsJs, /revealChunkPosition\(j, index, within\)/);
+  assert.match(ttsJs, /CSS\.highlights\.set\('tts-seek'/);
+  assert.match(ttsJs, /scrollIntoView\(\{ behavior: 'smooth', block: 'center' \}\)/);
+  assert.match(css, /::highlight\(tts-seek\)/);
+  assert.match(css, /--tts-accent:\s*#A07C45/);
 });

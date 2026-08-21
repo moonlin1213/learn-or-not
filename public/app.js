@@ -716,7 +716,13 @@ async function renderLesson(id) {
       <div id="tts-bar" class="hidden">
         <span class="tts-dot"></span>
         <button id="tts-pause" title="暂停">❚❚</button>
-        <span id="tts-seg"></span>
+        <div class="tts-readout">
+          <span id="tts-seg"></span>
+          <div class="tts-progress-row">
+            <input id="tts-progress" type="range" min="0" max="1000" value="0" step="1" aria-label="朗读进度，拖动可跳转">
+            <output id="tts-percent" for="tts-progress">0%</output>
+          </div>
+        </div>
         <button id="tts-stop" title="停止">✕</button>
       </div>
     </div>

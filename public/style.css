@@ -42,6 +42,8 @@
   --line-strong: rgba(59, 65, 72, .26);
   --rose-deep: #7D5454;
   --sage-deep: #647A66;
+  --tts-accent: #9B7370;
+  --tts-accent-soft: #D2B7B0;
   --serif: "Cormorant Garamond", "Songti SC", "Noto Serif SC", "Source Han Serif SC", Georgia, "Times New Roman", serif;
   --sans: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --mono: "SF Mono", Menlo, monospace;
@@ -516,22 +518,64 @@ details.card > summary,
 /* 朗读迷你播放条（课节吸顶区内，tabs 之下） */
 #tts-bar {
   display: flex; align-items: center; gap: 12px;
-  padding: 7px 2px 9px; margin-top: 6px;
+  padding: 8px 2px 10px; margin-top: 6px;
   border-top: 1px solid var(--line);
   font-size: .82rem; color: var(--ink-soft); letter-spacing: 1px;
 }
 #tts-bar.hidden { display: none; }
 #tts-bar button {
   border: 1px solid var(--line); background: none; color: var(--ink-soft);
-  width: 26px; height: 26px; border-radius: 50%; padding: 0;
+  width: 26px; height: 26px; border-radius: 50%; padding: 0; flex: none;
   font-size: .68rem; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
 }
 #tts-bar button:hover { border-color: var(--rose); color: var(--rose-deep); }
+#tts-bar button:focus-visible { outline: 2px solid color-mix(in srgb, var(--rose) 38%, transparent); outline-offset: 3px; }
 #tts-bar button:disabled { opacity: .4; pointer-events: none; }
-#tts-seg { font-family: var(--serif); font-size: .88rem; letter-spacing: 1.5px; min-width: 12ch; }
+.tts-readout { flex: 1; min-width: 0; display: grid; gap: 4px; }
+#tts-seg { font-family: var(--serif); font-size: .88rem; letter-spacing: 1.5px; line-height: 1.1; }
+.tts-progress-row { display: flex; align-items: center; gap: 9px; min-width: 0; }
+#tts-progress {
+  --tts-progress: 0%;
+  appearance: none; -webkit-appearance: none;
+  flex: 1; min-width: 90px; height: 14px; margin: 0;
+  background: transparent; cursor: pointer;
+}
+#tts-progress::-webkit-slider-runnable-track {
+  height: 2px; border-radius: 2px;
+  background: linear-gradient(to right, var(--tts-accent) 0 var(--tts-progress), var(--line-strong) var(--tts-progress) 100%);
+}
+#tts-progress::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 10px; height: 10px; margin-top: -4px;
+  border-radius: 50%; border: 1px solid var(--surface);
+  background: var(--tts-accent); box-shadow: 0 0 0 1px var(--tts-accent-soft);
+  transition: transform .18s var(--ease), box-shadow .18s var(--ease);
+}
+#tts-progress:hover::-webkit-slider-thumb,
+#tts-progress:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.22); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tts-accent-soft) 42%, transparent);
+}
+#tts-progress:focus-visible { outline: none; }
+#tts-percent {
+  min-width: 3ch; text-align: right; color: var(--ink-faint);
+  font-family: var(--serif); font-size: .72rem; letter-spacing: .5px;
+}
 .tts-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint); flex: none; }
 #tts-bar.playing .tts-dot { background: var(--rose); animation: tts-pulse 1.6s ease-in-out infinite; }
 @keyframes tts-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.72); } }
+::highlight(tts-seek) { background-color: color-mix(in srgb, var(--tts-accent-soft) 52%, transparent); }
+.tts-locate-flash { animation: tts-locate-flash 1.45s var(--ease); border-radius: 4px; }
+@keyframes tts-locate-flash {
+  0% { background-color: color-mix(in srgb, var(--tts-accent-soft) 38%, transparent); box-shadow: inset 3px 0 var(--tts-accent); }
+  45% { background-color: color-mix(in srgb, var(--tts-accent-soft) 16%, transparent); box-shadow: inset 3px 0 color-mix(in srgb, var(--tts-accent) 55%, transparent); }
+  100% { background-color: transparent; box-shadow: inset 3px 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tts-locate-flash { animation: none; background-color: color-mix(in srgb, var(--tts-accent-soft) 22%, transparent); }
+}
+@media (max-width: 620px) {
+  #tts-bar { gap: 9px; }
+  #tts-percent { display: none; }
+}
 
 .chat-panel {
   position: sticky; top: 90px;
@@ -741,6 +785,8 @@ body[data-view="lesson"] main { max-width: 1440px; }
   --rose: #174C5A;        /* papyrus-lapis 主色 */
   --rose-deep: #123E49;
   --rose-soft: #897455;   /* papyrus-gold 哑金 */
+  --tts-accent: #A07C45;  /* 朗读进度：低饱和旧金 */
+  --tts-accent-soft: #D3C19D;
   --sage: #5D8575;
   --sage-light: #CBD2BC;
   --sage-deep: #365E50;   /* papyrus-green */
