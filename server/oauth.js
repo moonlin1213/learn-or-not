@@ -284,13 +284,24 @@ export async function oauthChat(platformId, modelId, messages, { maxTokens = 160
   if (!model) throw new Error(`${platform.name} 不支持模型 ${modelId}`);
   const options = { maxTokens: Math.min(maxTokens, model.maxTokens || maxTokens) };
   if (temperature != null) options.temperature = temperature;
-  const answer = await oauthModels.complete(model, contextFor(model, messages), options);
-  if (answer.stopReason === 'error' || answer.stopReason === 'aborted') {
-    throw new Error(safeError(answer.errorMessage || `${platform.name} 请求失败`));
+  // 代理链路（chatgpt.com / x.ai）偶发抖动：失败自动重试一次，
+  // 避免交卷阅卷等多步连续调用被单次抖动整体带崩。
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const answer = await oauthModels.complete(model, contextFor(model, messages), options);
+      if (answer.stopReason === 'error' || answer.stopReason === 'aborted') {
+        throw new Error(safeError(answer.errorMessage || `${platform.name} 请求失败`));
+      }
+      const text = answer.content.filter(part => part.type === 'text').map(part => part.text || '').join('');
+      if (!text.trim()) throw new Error(`${platform.name} 返回了空响应`);
+      return text;
+    } catch (error) {
+      lastError = error;
+    }
   }
-  const text = answer.content.filter(part => part.type === 'text').map(part => part.text || '').join('');
-  if (!text.trim()) throw new Error(`${platform.name} 返回了空响应`);
-  return text;
+  throw lastError;
 }
 
 export const oauthInternals = { OAUTH_FILE, DSH_OAUTH_FILE, PLATFORM, createRuntimeModels };
