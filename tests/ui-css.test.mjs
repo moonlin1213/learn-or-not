@@ -22,6 +22,10 @@ test('toast entrance animation preserves horizontal centering', () => {
   const toastRule = css.match(/#toast\s*\{([\s\S]*?)\}/)?.[1] || '';
   assert.match(toastRule, /left:\s*50%/);
   assert.match(toastRule, /animation:\s*toast-rise\b/);
+
+  const errorRule = css.match(/#toast\.err\s*\{([\s\S]*?)\}/)?.[1] || '';
+  assert.match(errorRule, /max-width:\s*min\(/);
+  assert.match(errorRule, /overflow-wrap:\s*anywhere/);
 });
 
 test('lesson TTS exposes a styled progress control with real audio seeking', () => {

@@ -407,7 +407,12 @@ details summary::-webkit-details-marker { color: var(--rose-soft); }
   font-size: .88rem; z-index: 200; box-shadow: var(--shadow);
   letter-spacing: 1px; animation: toast-rise .3s var(--ease);
 }
-#toast.err { background: var(--rose-deep); color: #F3EEE6; }
+#toast.err {
+  max-width: min(760px, calc(100vw - 48px));
+  background: var(--rose-deep); color: #F3EEE6;
+  border-radius: 14px; line-height: 1.6; text-align: left;
+  white-space: normal; overflow-wrap: anywhere;
+}
 
 .empty { text-align: center; color: var(--ink-faint); padding: 70px 20px; letter-spacing: 1px; }
 .empty .emoji { font-size: 2.2rem; display: block; margin-bottom: 12px; opacity: .7; }

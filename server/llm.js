@@ -92,7 +92,9 @@ export async function chat(provider, model, messages, { maxTokens = 16000, tempe
 // 从 LLM 输出中提取 JSON（容忍 markdown 围栏与前后杂文本）
 export function extractJson(text) {
   let s = text.trim();
-  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/);
+  // 只把包住整个响应的围栏当作 JSON 外壳。讲义 JSON 的字符串内部经常
+  // 包含 ```python 等 Markdown 代码块，不能把内部代码块误截成待解析内容。
+  const fence = s.match(/^```(?:json)?\s*([\s\S]*?)```\s*$/i);
   if (fence) s = fence[1].trim();
   const start = s.search(/[[{]/);
   if (start > 0) s = s.slice(start);
@@ -102,7 +104,7 @@ export function extractJson(text) {
     if (tail !== '}' && tail !== ']') continue;
     try { return JSON.parse(s.slice(0, end)); } catch { /* 继续缩短 */ }
   }
-  throw new Error('无法从模型输出解析 JSON: ' + text.slice(0, 300));
+  throw new Error('模型返回的内容格式不完整，无法读取');
 }
 
 // ---------- DSH 导入 ----------
