@@ -18,9 +18,17 @@ test('exit checkpoint archives in place and explicit archive rotates once', () =
     book_id: bookId, idx: 0, title: '模块', summary: '',
   }).lastInsertRowid);
   const lessonId = Number(store.addLesson({
-    module_id: moduleId, book_id: bookId, idx: 0, title: '课节', goal: '',
+    module_id: moduleId, book_id: bookId, idx: 0, title: '第一课', goal: '',
     source_hint: '', est_minutes: 20,
   }).lastInsertRowid);
+  const nextLessonId = Number(store.addLesson({
+    module_id: moduleId, book_id: bookId, idx: 1, title: '第二课', goal: '',
+    source_hint: '', est_minutes: 20,
+  }).lastInsertRowid);
+  // 学习进度已经推进到第二课，但最后聊天仍发生在第一课。
+  store.setLastLesson(bookId, nextLessonId);
+  assert.equal(store.nextLesson(bookId, lessonId).id, nextLessonId);
+  assert.equal(store.nextLesson(bookId, nextLessonId), undefined);
 
   const first = store.currentChatSession(lessonId);
   store.addChat({ book_id: bookId, lesson_id: lessonId, role: 'user', content: '为什么天空是蓝色的？', session_id: first.id });
@@ -30,6 +38,7 @@ test('exit checkpoint archives in place and explicit archive rotates once', () =
   assert.equal(restored.id, first.id);
   assert.equal(restored.lesson_id, lessonId);
   assert.equal(restored.book_id, bookId);
+  assert.equal(restored.resume_lesson_id, nextLessonId);
   assert.equal(restored.msg_count, 2);
   assert.equal(restored.archived, 0);
 
@@ -71,5 +80,6 @@ test('exit checkpoint archives in place and explicit archive rotates once', () =
   assert.equal(restoredGlobal.id, global.id);
   assert.equal(restoredGlobal.lesson_id, null);
   assert.equal(restoredGlobal.book_id, bookId);
+  assert.equal(restoredGlobal.resume_lesson_id, nextLessonId);
   assert.equal(restoredGlobal.archived, 0);
 });

@@ -201,6 +201,9 @@ export async function gradeQuiz(lessonId, answers) {
   }
   const total = Math.round((scoreSum / quiz.length) * 100);
   store.setLessonStudy(lessonId, 'done', total);
+  // 交卷即推进到下一课；冷启动恢复课程进度时不会停在已经完成的本课。
+  const nextLesson = store.nextLesson(lesson.book_id, lessonId);
+  store.setLastLesson(lesson.book_id, nextLesson?.id || lessonId);
 
   // 首次完成：创建艾宾浩斯复习排期（+1/2/4/7/15/30 天）
   if (!store.hasReviewSchedule(lessonId)) {

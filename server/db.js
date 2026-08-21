@@ -328,6 +328,7 @@ export const store = {
         fields.terms ? JSON.stringify(fields.terms) : null, fields.quiz ? JSON.stringify(fields.quiz) : null, id);
   },
   setLessonStudy: (id, st, score = null) => prep('sls', 'UPDATE lessons SET study_status=?, quiz_score=COALESCE(?,quiz_score) WHERE id=?').run(st, score, id),
+  nextLesson: (bookId, lessonId) => prep('nl', 'SELECT * FROM lessons WHERE book_id=? AND id>? ORDER BY id LIMIT 1').get(bookId, lessonId),
   bookTerms: (bookId) => prep('bt', `SELECT l.id AS lesson_id, l.title AS lesson_title, l.terms FROM lessons l
     WHERE l.book_id=? AND l.terms IS NOT NULL ORDER BY l.id`).all(bookId),
 
@@ -429,12 +430,14 @@ export const store = {
     return prep('gcs3', 'SELECT * FROM chat_sessions WHERE id=?').get(cur.id);
   },
   lastResumableChatSession: () => prep('lrcs', `
-    SELECT s.*, l.title AS lesson_title,
-      COALESCE(l.book_id, (SELECT m.book_id FROM chat_messages m WHERE m.session_id=s.id AND m.book_id IS NOT NULL ORDER BY m.id DESC LIMIT 1)) AS book_id,
+    SELECT s.*, l.title AS lesson_title, b.id AS book_id,
+      COALESCE(b.last_lesson_id, s.lesson_id) AS resume_lesson_id,
       (SELECT COUNT(*) FROM chat_messages m WHERE m.session_id=s.id) AS msg_count,
       (SELECT MAX(m.id) FROM chat_messages m WHERE m.session_id=s.id) AS last_msg_id
     FROM chat_sessions s
     LEFT JOIN lessons l ON l.id=s.lesson_id
+    LEFT JOIN books b ON b.id=COALESCE(l.book_id,
+      (SELECT m.book_id FROM chat_messages m WHERE m.session_id=s.id AND m.book_id IS NOT NULL ORDER BY m.id DESC LIMIT 1))
     WHERE s.is_current=1 AND EXISTS (SELECT 1 FROM chat_messages m WHERE m.session_id=s.id)
     ORDER BY last_msg_id DESC LIMIT 1`).get(),
   listSessionMessages: (sessionId, limit = 200) => prep('lsm', 'SELECT * FROM chat_messages WHERE session_id=? ORDER BY id DESC LIMIT ?').all(sessionId, limit).reverse(),

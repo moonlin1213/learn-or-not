@@ -2259,8 +2259,10 @@ async function restoreLastChatSession() {
     if (!session?.id || !session.msg_count) return;
     chatState.open = true;
     localStorage.setItem('learnloop.chatOpen', '1');
-    const target = session.lesson_id
-      ? `#/lesson/${session.lesson_id}`
+    // 聊天会话只决定恢复哪本书；主页面以该书的学习进度为准。
+    // 否则旧课的聊天会话会把已经推进的课程位置抢回去。
+    const target = session.resume_lesson_id
+      ? `#/lesson/${session.resume_lesson_id}`
       : session.book_id ? `#/book/${session.book_id}` : '#/shelf';
     history.replaceState(null, '', target);
   } catch { /* 恢复失败不影响正常开页 */ }
