@@ -2423,9 +2423,9 @@ async function paintGlobalChat() {
       <div class="chat-head">
         <span class="chat-title" id="chat-title" title="点我收起">老师来了</span>
         <button class="chat-cat-btn" id="chat-new" title="开新会话"><img class="chat-cat" src="/bastet-cat.png" alt=""></button>
+        <button class="chat-mode-btn" id="chat-mode-btn" title=""></button>
         <button class="chat-archive" id="chat-archive" title="归档会话：存进「复习 · 会话记录」">入</button>
         <button class="llm-picker-btn" id="llm-picker-btn" title="选择模型"><span class="llm-label">${esc(chatState.model?.label || '选择模型')}</span></button>
-        <button class="chat-mode-btn" id="chat-mode-btn" title=""></button>
       </div>
       <div class="chat-ctx" id="chat-ctx"></div>
       <div class="llm-list hidden" id="llm-list">
