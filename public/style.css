@@ -622,6 +622,16 @@ details.card > summary,
 }
 .llm-picker-btn:hover { border-color: var(--rose-soft); color: var(--rose-deep); }
 .llm-picker-btn i { font-style: normal; flex-shrink: 0; }
+/* 导师模式切换（私教/苏格拉底/费曼/考官） */
+.chat-mode-btn {
+  flex: 0 0 auto; height: 26px; padding: 0 12px;
+  border: 1px solid var(--line); background: var(--surface-2);
+  font-size: .75rem; letter-spacing: .5px; color: var(--ink-soft);
+  border-radius: 999px; white-space: nowrap; cursor: pointer;
+}
+.chat-mode-btn:hover:not(:disabled) { border-color: var(--rose-soft); color: var(--rose-deep); }
+.chat-mode-btn.off-mode { color: var(--ink-faint); }
+.chat-mode-btn:disabled { opacity: .45; cursor: not-allowed; }
 .chat-collapse { border: none; background: none; color: var(--ink-faint); padding: 4px 6px; font-size: 1rem; }
 .chat-collapse:hover { color: var(--rose-deep); }
 

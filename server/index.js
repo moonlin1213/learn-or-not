@@ -415,7 +415,7 @@ route('POST', '/api/lessons/:id/chat', async (req, { id }, body, _q, res) => {
   }
   return chatWithTeacher({
     bookId: lesson.book_id, lessonId: Number(id),
-    message: body.message.trim(), selection: body.selection, providerId: body.provider_id, model: body.model,
+    message: body.message.trim(), selection: body.selection, providerId: body.provider_id, model: body.model, mode: body.mode,
   });
 });
 
@@ -567,7 +567,7 @@ route('POST', '/api/chat', async (req, _p, body, _q, res) => {
   }
   return chatWithTeacher({
     bookId: body.book_id || null, lessonId: null,
-    message: body.message.trim(), selection: body.selection, providerId: body.provider_id, model: body.model,
+    message: body.message.trim(), selection: body.selection, providerId: body.provider_id, model: body.model, mode: body.mode,
   });
 });
 

@@ -328,7 +328,14 @@ ${selection ? `学生选中的原文：「${selection}」\n\n` : ''}学生的问
 
 // ---------- 侧边栏聊天（AI 老师） ----------
 
-export async function chatWithTeacher({ bookId, lessonId, message, selection, providerId, model }) {
+// 导师模式：附加在私教 system prompt 之后的风格指令（单轮无状态设计下只是换提示词）
+const TUTOR_MODES = {
+  socratic: '当前是「苏格拉底模式」：不要直接给出答案，用由浅入深的引导式反问帮宝宝自己想明白；每次最多问一两个问题，宝宝答对方向后及时肯定并继续推进；连续两次卡住可以给关键提示，但最后一步仍留给宝宝自己走。',
+  feynman: '当前是「费曼模式」：宝宝来当小老师给你讲解，你负责挑错与补漏。认真听宝宝的表述，先肯定讲对的部分，再指出不准确或含糊之处，用更简单的方式补讲一遍，最后出一道小检验题确认宝宝真的懂了。',
+  examiner: '当前是「考官模式」：你是严格的考官，围绕当前教材内容连环出题拷问宝宝。一次只出一题（选择或简答均可），宝宝作答后再判定并讲评，然后出下一题；难度循序渐进，发现薄弱点就多追问几轮。',
+};
+
+export async function chatWithTeacher({ bookId, lessonId, message, selection, providerId, model, mode }) {
   const book = bookId ? store.getBook(bookId) : null;
   let p = activeProvider();
   if (providerId) {
@@ -376,9 +383,10 @@ export async function chatWithTeacher({ bookId, lessonId, message, selection, pr
     pendingText = pendingRows.map(m => `${m.role === 'user' ? '学生' : '老师'}：${m.content}`).join('\n\n');
   }
 
+  const modeRule = TUTOR_MODES[mode] ? `\n\n${TUTOR_MODES[mode]}` : '';
   const answer = await chat(p, useModel, [
     sys(`你是一位耐心、博学的私教老师${book ? `，正在陪学生读《${book.title}》` : '，学生随时会过来插嘴问问题'}。
-风格要求：称呼学生「宝宝」，不用「同学们/大家」；先直接回应问题，再展开；讲解通俗，善用类比和例子；${book ? '回答紧扣教材内容，学生跑题时温和拉回来；' : '没有教材上下文时就凭学识回答，知之为知之；'}语气亲切自然，像面对面辅导。回答用 markdown，适度分段，不要过长（一般 300 字以内，除非学生要求详细展开）。不要使用 emoji 表情符号。`),
+风格要求：称呼学生「宝宝」，不用「同学们/大家」；先直接回应问题，再展开；讲解通俗，善用类比和例子；${book ? '回答紧扣教材内容，学生跑题时温和拉回来；' : '没有教材上下文时就凭学识回答，知之为知之；'}语气亲切自然，像面对面辅导。回答用 markdown，适度分段，不要过长（一般 300 字以内，除非学生要求详细展开）。不要使用 emoji 表情符号。${modeRule}`),
     usr(`${context}
 
 ${synopsis ? `【早前讨论小结】\n${synopsis}\n\n` : ''}${pendingText ? `【稍早的对话】\n${pendingText}\n\n` : ''}${history ? `【最近的对话】\n${history}\n\n` : ''}${selection ? `宝宝选中的原文：「${selection}」\n\n` : ''}宝宝：${message}`),

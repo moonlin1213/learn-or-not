@@ -2288,9 +2288,19 @@ async function renderReviewSession(id) {
 }
 
 // ---------- 老师来了 · 全局聊天栏 ----------
+// 导师模式：只影响云端私教的回答风格（陪伴 agent 以本色回答，不套模式）
+const CHAT_MODES = [
+  { id: '', label: '私教', title: '常规私教：直接讲懂' },
+  { id: 'socratic', label: '苏格拉底', title: '不给答案，用反问引导你自己想明白' },
+  { id: 'feynman', label: '费曼', title: '你来讲，老师挑错补漏并检验' },
+  { id: 'examiner', label: '考官', title: '连环出题拷问，判定讲评' },
+];
+const chatModeById = id => CHAT_MODES.find(m => m.id === id) || CHAT_MODES[0];
+
 const chatState = {
   open: localStorage.getItem('learnloop.chatOpen') === '1',
   model: JSON.parse(localStorage.getItem('learnloop.chatModel') || 'null'),
+  modeId: CHAT_MODES.some(m => m.id === localStorage.getItem('learnloop.chatMode')) ? localStorage.getItem('learnloop.chatMode') : '',
   sending: false,
   ctxKey: null,
   sessionId: null,
@@ -2385,6 +2395,7 @@ async function paintGlobalChat() {
         <button class="chat-cat-btn" id="chat-new" title="开新会话"><img class="chat-cat" src="/bastet-cat.png" alt=""></button>
         <button class="chat-archive" id="chat-archive" title="归档会话：存进「复习 · 会话记录」">入</button>
         <button class="llm-picker-btn" id="llm-picker-btn" title="选择模型"><span class="llm-label">${esc(chatState.model?.label || '选择模型')}</span></button>
+        <button class="chat-mode-btn" id="chat-mode-btn" title=""></button>
       </div>
       <div class="chat-ctx" id="chat-ctx"></div>
       <div class="llm-list hidden" id="llm-list">
@@ -2440,6 +2451,26 @@ async function paintGlobalChat() {
     $('#llm-picker-btn').onclick = () => {
       $('#llm-list').classList.toggle('hidden');
     };
+    // 导师模式：点击循环切换，云端私教专用（陪伴 agent 以本色回答）
+    const updateChatModeBtn = () => {
+      const btn = $('#chat-mode-btn');
+      if (!btn) return;
+      const m = chatModeById(chatState.modeId);
+      const isCompanion = chatState.model?.provider_id === 'companion';
+      btn.textContent = m.label;
+      btn.title = isCompanion ? '陪伴 agent 以本色回答，不套导师模式' : `${m.title}（点击切换）`;
+      btn.disabled = isCompanion;
+      btn.classList.toggle('off-mode', !chatState.modeId);
+    };
+    updateChatModeBtn();
+    $('#chat-mode-btn').onclick = () => {
+      const i = CHAT_MODES.findIndex(m => m.id === chatState.modeId);
+      const next = CHAT_MODES[(i + 1) % CHAT_MODES.length];
+      chatState.modeId = next.id;
+      localStorage.setItem('learnloop.chatMode', next.id);
+      updateChatModeBtn();
+      toast(next.id ? `导师模式：${next.label} · ${next.title}` : '导师模式：常规私教');
+    };
     $('#llm-list').onclick = e => {
       if (e.target.closest('#llm-companion-setup')) {
         $('#llm-list').classList.add('hidden');
@@ -2457,6 +2488,7 @@ async function paintGlobalChat() {
       }
       localStorage.setItem('learnloop.chatModel', JSON.stringify(chatState.model));
       $('#llm-picker-btn').innerHTML = `<span class="llm-label">${esc(chatState.model.label)}</span>`;
+      updateChatModeBtn();
       $$('.llm-chip', panel).forEach(c => c.classList.toggle('current', c === chip));
       const providerKey = chip.dataset.pid === 'companion' ? 'companion' : chip.dataset.pid;
       const saved = loadModelMenuExpanded();
@@ -2556,7 +2588,7 @@ async function sendChat() {
   box.scrollTop = box.scrollHeight;
   const ctx = chatContext();
   try {
-    const payload = { message: msg, selection, provider_id: chatState.model?.provider_id, model: chatState.model?.model };
+    const payload = { message: msg, selection, provider_id: chatState.model?.provider_id, model: chatState.model?.model, mode: chatState.modeId || undefined };
     if (chatState.model?.provider_id === 'companion') {
       // 陪伴 agent：SSE 流式渲染
       const compName = chatState.companion?.name || '伙伴';
