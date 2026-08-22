@@ -188,7 +188,12 @@ window.TTS = (() => {
   function updateKaraoke() {
     const j = job;
     if (!j || j.state !== 'playing' || !j.domIndex) return;
-    const { index, within } = locateFraction(j, currentFraction(j));
+    // 直接从 timeline 拿播放位置，不经 fraction 往返反演——帧间隙（段边界/seek 过渡）跳过本帧，绝不回退
+    const now = ac ? ac.currentTime : 0;
+    const x = j.timeline.find(t => t.generation === j.generation && now >= t.start && now < t.end);
+    if (!x) return;
+    const index = x.index;
+    const within = Math.min(1, Math.max(0, (x.offset + now - x.start) / x.duration));
     const lens = j.unitLens[index];
     if (!lens || !lens.length) return;
     let acc = 0, pick = lens.length - 1;
@@ -198,8 +203,9 @@ window.TTS = (() => {
     }
     const key = `${index}:${pick}`;
     if (key === karaokeKey) return;
-    const range = unitRange(j, j.chunks[index].split('\n')[pick]);
-    if (!range) return;
+    // 先映射句子；含公式/表格占位等映射不上时，退回整段范围（至少跟到段）
+    const range = unitRange(j, j.chunks[index].split('\n')[pick]) || findChunkRange(j.rootEl, j.chunks[index], within);
+    if (!range) { karaokeKey = ''; return; } // 本帧没找到：清空 key，下一帧重试
     karaokeKey = key;
     try {
       if (window.CSS?.highlights && window.Highlight) {
@@ -479,7 +485,9 @@ window.TTS = (() => {
     const progress = document.getElementById('tts-progress');
     if (progress) {
       progress.addEventListener('pointerdown', () => { progressDragging = true; });
+      progress.addEventListener('pointerup', () => { progressDragging = false; }); // 点击未拖动时 change 不触发，必须在此复位，否则跟读高亮被永久冻结
       progress.addEventListener('pointercancel', () => { progressDragging = false; });
+      progress.addEventListener('lostpointercapture', () => { progressDragging = false; });
       progress.addEventListener('input', () => {
         progressDragging = true;
         paintProgress(Number(progress.value) / 1000, false);
