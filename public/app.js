@@ -3005,6 +3005,7 @@ window.addEventListener('load', () => {
     const el = document.activeElement;
     if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
     const k = e.key;
+    if (k === ' ' && TTS.isActive()) { e.preventDefault(); TTS.togglePause(); return; } // 空格：朗读暂停/续播（未朗读时空格保持页面滚动）
     const prev = $('#td-prev') || $('#wd-prev');
     const next = $('#td-next') || $('#wd-next');
     if ((k === 'j' || k === 'ArrowRight') && next) { e.preventDefault(); next.click(); return; }
