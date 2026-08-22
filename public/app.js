@@ -1983,8 +1983,9 @@ async function renderSettings() {
 
   // 备份 / 恢复
   $('#backup-export').onclick = async () => {
+    const withSecrets = confirm('备份里要包含 provider 的 API key 吗？\n\n【确定】包含：换机恢复后不用重填 key，但备份文件泄露 = 密钥泄露，务必妥善保管\n【取消】不含：更安全，恢复后需到设置里重新填写各 provider 的 key');
     try {
-      const res = await fetch('/api/backup');
+      const res = await fetch('/api/backup' + (withSecrets ? '?secrets=1' : ''));
       if (!res.ok) throw new Error('导出失败');
       const blob = await res.blob();
       const a = document.createElement('a');
@@ -1993,7 +1994,7 @@ async function renderSettings() {
       a.download = `learnloop-backup-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
       a.click();
       URL.revokeObjectURL(a.href);
-      toast('备份已下载');
+      toast(withSecrets ? '备份已下载（含 API key，注意保管）' : '备份已下载（不含 API key）');
     } catch (e) { toast(e.message, true); }
   };
   $('#backup-restore').onclick = () => $('#backup-file').click();
@@ -2010,6 +2011,8 @@ async function renderSettings() {
       const r = await api('/api/backup/restore', { method: 'POST', body: payload });
       const files = r.files ? `、${r.files.texts} 份教材正文、${r.files.uploads} 份原书` : '';
       toast(`已恢复 ${r.restored} 张表的数据${files}`);
+      const noKeys = (payload.tables?.providers || []).some(p => p.api_key == null);
+      if (noKeys) setTimeout(() => toast('这份备份不含 API key，记得到设置里给 provider 重新填写', true), 800);
       renderSettings();
       refreshBadge();
     } catch (err) { toast(err.message, true); }

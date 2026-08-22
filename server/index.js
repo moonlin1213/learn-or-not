@@ -61,6 +61,32 @@ function trustedLocalRequest(req) {
   } catch { return false; }
 }
 
+// /api 全局本机校验（对全部接口生效，挡 DNS rebinding：攻击者域名 rebind 到 127.0.0.1 后
+// 请求的 Host 是攻击者域名而非本机；同时拒绝显式 cross-site 的浏览器请求）。
+// 与 trustedLocalRequest 的区别：GET 类同源请求浏览器不带 Origin，这里不强制要求 Origin，
+// 但一旦带就必须与本机 Host 同源。curl 等工具只要 Host 指向本机即可通过。
+function localApiRequest(req) {
+  const remote = req.socket.remoteAddress;
+  if (remote !== '127.0.0.1' && remote !== '::1' && remote !== '::ffff:127.0.0.1') return false;
+  if (req.headers['sec-fetch-site'] === 'cross-site') return false;
+  const internal = process.env.LEARNLOOP_INTERNAL_TOKEN;
+  if (internal && req.headers['x-learnloop-internal'] === internal) return true;
+  const host = req.headers.host;
+  if (!host) return false;
+  let hostname;
+  try { hostname = new URL(`http://${host}`).hostname; } catch { return false; }
+  if (!['127.0.0.1', 'localhost', '[::1]'].includes(hostname)) return false;
+  const origin = req.headers.origin;
+  if (origin) {
+    try {
+      const source = new URL(origin);
+      if (source.protocol !== 'http:' || source.host !== host) return false;
+      if (!['127.0.0.1', 'localhost', '[::1]'].includes(source.hostname)) return false;
+    } catch { return false; }
+  }
+  return true;
+}
+
 function send(res, code, data, headers = {}) {
   const body = typeof data === 'string' || Buffer.isBuffer(data) ? data : JSON.stringify(data);
   res.writeHead(code, { 'Content-Type': typeof data === 'object' && !Buffer.isBuffer(data) ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8', ...headers });
@@ -278,7 +304,14 @@ route('POST', '/api/focus', async (req, _p, body) => {
 });
 
 // 备份 / 恢复
-route('GET', '/api/backup', async () => ({ ...dumpAll(), files: dumpFiles() }));
+route('GET', '/api/backup', async (req, _p, _b, query) => {
+  const payload = { ...dumpAll(), files: dumpFiles() };
+  // 默认不导出 provider 的 api_key（备份文件一旦外泄即泄露密钥）；显式 ?secrets=1 才包含
+  if (query.secrets !== '1') {
+    payload.tables = { ...payload.tables, providers: (payload.tables.providers || []).map(({ api_key, ...rest }) => rest) };
+  }
+  return payload;
+});
 route('POST', '/api/backup/restore', async (req, _p, body) => {
   const result = restoreAll(body);
   const files = restoreFiles(body?.files);
@@ -692,6 +725,7 @@ const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, 'http://x');
     const query = Object.fromEntries(u.searchParams);
     if (u.pathname.startsWith('/api/')) {
+      if (!localApiRequest(req)) return bad(res, 'forbidden', 403);
       const body = ['POST', 'PUT', 'PATCH'].includes(req.method) && req.headers['content-type']?.includes('application/json') ? await readBody(req) : {};
       for (const r of routes) {
         if (r.method !== req.method) continue;

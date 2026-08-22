@@ -520,6 +520,7 @@ export function restoreAll(payload) {
       const cols = db.prepare(`PRAGMA table_info(${t})`).all().map(c => c.name);
       db.prepare(`DELETE FROM ${t}`).run();
       for (const row of rows) {
+        if (t === 'providers' && row.api_key == null) row.api_key = ''; // 默认备份不含 key，恢复时补空串满足 NOT NULL
         const keys = Object.keys(row).filter(k => cols.includes(k));
         if (!keys.length) continue;
         db.prepare(`INSERT INTO ${t} (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`)
