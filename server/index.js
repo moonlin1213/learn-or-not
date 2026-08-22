@@ -323,6 +323,45 @@ route('POST', '/api/backup/restore', async (req, _p, body) => {
 route('GET', '/api/export/obsidian/status', async () => obsidianStatus());
 route('POST', '/api/export/obsidian', async () => exportToObsidian());
 
+// Anki CSV 导出：术语卡 / 错题卡（Anki「导入文件」选 CSV，逗号分隔，字段内允许 HTML）
+route('GET', '/api/export/anki', async (req, _p, _b, query, res) => {
+  const type = query.type === 'wrong' ? 'wrong' : 'terms';
+  const bookId = query.book_id ? Number(query.book_id) : null;
+  const csvEsc = v => `"${String(v ?? '').replace(/"/g, '""').replace(/\r?\n/g, '<br>')}"`;
+  const rows = [];
+  if (type === 'terms') {
+    for (const l of store.raw(bookId
+      ? `SELECT l.title, l.terms, b.title AS book_title FROM lessons l JOIN books b ON b.id=l.book_id WHERE l.book_id=? AND l.terms IS NOT NULL ORDER BY l.idx`
+      : `SELECT l.title, l.terms, b.title AS book_title FROM lessons l JOIN books b ON b.id=l.book_id WHERE l.terms IS NOT NULL ORDER BY l.book_id, l.idx`,
+      ...(bookId ? [bookId] : []))) {
+      let terms = [];
+      try { terms = JSON.parse(l.terms); } catch { continue; }
+      for (const t of terms) {
+        if (!t?.term) continue;
+        rows.push([t.term, `${t.annotation || ''}<br><small>${l.book_title || ''} · ${l.title}</small>`]);
+      }
+    }
+  } else {
+    for (const w of store.listWrong(bookId)) {
+      let opts = null;
+      try { opts = w.options ? JSON.parse(w.options) : null; } catch { /* options 损坏按简答处理 */ }
+      const front = Array.isArray(opts) && opts.length
+        ? `${w.question}<br>${opts.map((o, i) => `${'ABCD'[i] || '.'}. ${o}`).join('<br>')}`
+        : w.question;
+      rows.push([front, `${w.correct_answer || ''}${w.explanation ? `<br><br>解析：${w.explanation}` : ''}<br><small>${w.book_title || ''} · ${w.lesson_title || ''}</small>`]);
+    }
+  }
+  if (!rows.length) throw new Error('没有可导出的内容');
+  const csv = '\uFEFF' + rows.map(r => r.map(csvEsc).join(',')).join('\r\n'); // BOM 方便 Excel 正确识别 UTF-8
+  res.writeHead(200, {
+    'Content-Type': 'text/csv; charset=utf-8',
+    'Content-Disposition': `attachment; filename="learnloop-${type}${bookId ? `-book${bookId}` : ''}.csv"`,
+    'Cache-Control': 'no-store',
+  });
+  res.end(csv);
+  return HANDLED;
+});
+
 // 文件夹/仓库导入（把 Markdown 目录树合成一本书）
 const DIR_IMPORT_EXCLUDE = new Set(['.git', '.venv', 'node_modules', 'en-us', 'img', 'images', 'PPT', '__pycache__']);
 

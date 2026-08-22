@@ -15,6 +15,20 @@ async function api(path, opts = {}) {
   return data;
 }
 
+// 下载一个会返回附件的 GET 接口（Anki CSV 等）
+async function downloadFrom(url, name) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || '导出失败');
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) { toast(e.message, true); }
+}
+
 // 模型选择器：只展开当前 provider，其余按名字折叠；展开状态本地持久化。
 const MODEL_MENU_STATE_KEY = 'learnloop.modelMenuExpanded';
 function loadModelMenuExpanded() {
@@ -1134,10 +1148,12 @@ async function renderTerms() {
       <label>教材</label>
       <select id="term-book">${outlined.map(b => `<option value="${b.id}" ${b.id === bookId ? 'selected' : ''}>${esc(b.title)}</option>`).join('')}</select>
       <span style="color:var(--ink-soft);font-size:.88rem">${terms.length} 张</span>
+      <button class="small ghost" id="terms-anki" title="导出 CSV，可在 Anki 里导入成卡组">导出 Anki</button>
       <button class="small ghost" id="tshuffle" style="margin-left:auto">打乱顺序</button>
     </div>
     <div id="term-stage"></div>`;
   $('#term-book').onchange = e => { location.hash = `#/terms?book=${e.target.value}`; renderTerms(); };
+  $('#terms-anki').onclick = () => downloadFrom(`/api/export/anki?type=terms&book_id=${bookId}`, `术语卡-书${bookId}.csv`);
 
   const stage = $('#term-stage');
   if (!terms.length) {
@@ -1436,10 +1452,12 @@ async function renderWrong() {
       </select>
       <span style="color:var(--ink-soft);font-size:.88rem">${wrongs.length} 道 · ${unmastered} 道待掌握</span>
       <span style="flex:1"></span>
+      <button class="small ghost" id="wrong-anki" title="导出 CSV，可在 Anki 里导入成卡组">导出 Anki</button>
       ${unmastered ? `<button class="primary small" id="retake-start">开始重考（${Math.min(unmastered, 10)} 道）</button>` : ''}
     </div>
     <div id="wrong-stage"></div>`;
   $('#wrong-book').onchange = e => { location.hash = e.target.value ? `#/wrong?book=${e.target.value}` : '#/wrong'; renderWrong(); };
+  $('#wrong-anki').onclick = () => downloadFrom(`/api/export/anki?type=wrong${bookId ? `&book_id=${bookId}` : ''}`, `错题本${bookId ? `-书${bookId}` : ''}.csv`);
   $('#retake-start')?.addEventListener('click', () => startRetake(bookId));
 
   const stage = $('#wrong-stage');
