@@ -520,6 +520,20 @@ route('GET', '/api/chat/sessions/:id', async (req, { id }) => {
   return { session, messages: store.listSessionMessages(session.id, 500) };
 });
 
+// 薄弱主题：未掌握错题聚集的课节 + 低分已完成的课节（供统计页与「去重考」直达）
+route('GET', '/api/stats/weak', async () => {
+  const byWrong = store.raw(`SELECT w.lesson_id, l.title, l.book_id, b.title AS book_title,
+      COUNT(*) AS wrong_total, SUM(CASE WHEN w.mastered=0 THEN 1 ELSE 0 END) AS unmastered
+    FROM wrong_questions w LEFT JOIN lessons l ON l.id=w.lesson_id LEFT JOIN books b ON b.id=w.book_id
+    WHERE w.lesson_id IS NOT NULL
+    GROUP BY w.lesson_id HAVING unmastered > 0 ORDER BY unmastered DESC, wrong_total DESC LIMIT 8`);
+  const lowScore = store.raw(`SELECT l.id, l.title, l.book_id, b.title AS book_title, l.quiz_score
+    FROM lessons l JOIN books b ON b.id=l.book_id
+    WHERE l.status='ready' AND l.study_status='done' AND l.quiz_score IS NOT NULL AND l.quiz_score < 70
+    ORDER BY l.quiz_score ASC LIMIT 8`);
+  return { byWrong, lowScore };
+});
+
 // 学习时长心跳 + 统计
 route('POST', '/api/study/heartbeat', async (req, _p, body) => {
   const secs = Number(body.seconds);

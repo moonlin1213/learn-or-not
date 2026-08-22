@@ -718,6 +718,15 @@ details.card > summary,
 
 /* ---------- 数据面板 ---------- */
 .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin-bottom: 26px; }
+/* 薄弱主题面板 */
+.weak-panel { margin-bottom: 26px; padding: 22px 26px; }
+.weak-title { font-family: var(--serif); font-size: 1.15rem; letter-spacing: 2px; margin-bottom: 6px; }
+.weak-sub { color: var(--ink-soft); font-size: .85rem; margin: 14px 0 8px; }
+.weak-row { display: flex; align-items: baseline; gap: 12px; padding: 8px 10px; border-radius: 8px; text-decoration: none; color: var(--ink); }
+.weak-row:hover { background: var(--surface-2); }
+.weak-row .wr-name { font-weight: 600; font-size: .92rem; }
+.weak-row .wr-book { color: var(--ink-faint); font-size: .8rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.weak-row .wr-tag { flex-shrink: 0; font-size: .75rem; color: var(--rose-deep); border: 1px solid var(--rose-soft); border-radius: 999px; padding: 1px 10px; }
 .stat-card { padding: 22px 24px; }
 .stat-num { font-family: var(--serif); font-size: 1.55rem; font-weight: 700; letter-spacing: .5px; color: var(--ink); }
 .stat-unit { font-size: .85rem; color: var(--ink-faint); margin-left: 5px; font-weight: 400; }

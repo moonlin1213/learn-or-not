@@ -2739,6 +2739,7 @@ function fmtMinutes(secs) {
 
 async function renderStats() {
   const st = await api('/api/stats');
+  const weak = await api('/api/stats/weak').catch(() => ({ byWrong: [], lowScore: [] }));
   const today = new Date();
   const fmtDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const dayMap = new Map(st.timeByDay.map(d => [d.date, d.seconds]));
@@ -2778,6 +2779,25 @@ async function renderStats() {
       <div class="card stat-card"><div class="stat-num">${fmtMinutes(st.totalSeconds)}</div><div class="stat-label">累计时长</div></div>
       <div class="card stat-card"><div class="stat-num">${st.lessons.avg_score || '—'}<span class="stat-unit">分</span></div><div class="stat-label">测验均分（${st.lessons.done}/${st.lessons.total} 节）</div></div>
     </div>
+
+    ${(weak.byWrong.length || weak.lowScore.length) ? `
+    <div class="card weak-panel">
+      <div class="weak-title">薄弱主题</div>
+      ${weak.byWrong.length ? `<div class="weak-sub">错题还没消化掉的地方 · 点进去就是对应课节，到错题本可按书重考</div>
+        ${weak.byWrong.map(w => `
+        <a class="weak-row" href="#/lesson/${w.lesson_id}">
+          <span class="wr-name">${esc(w.title || '课节')}</span>
+          <span class="wr-book">${esc(w.book_title || '')}</span>
+          <span class="wr-tag">${w.unmastered} 题待掌握 · 共 ${w.wrong_total} 题</span>
+        </a>`).join('')}` : ''}
+      ${weak.lowScore.length ? `<div class="weak-sub">测验低于 70 分的课节</div>
+        ${weak.lowScore.map(l => `
+        <a class="weak-row" href="#/lesson/${l.id}">
+          <span class="wr-name">${esc(l.title)}</span>
+          <span class="wr-book">${esc(l.book_title || '')}</span>
+          <span class="wr-tag">${l.quiz_score} 分</span>
+        </a>`).join('')}` : ''}
+    </div>` : ''}
 
     <div class="stat-grid">
       <div class="card stat-panel">
