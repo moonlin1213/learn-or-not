@@ -11,7 +11,17 @@ import { OAuthCredentialStore, readOAuthCredentialFile } from './oauth-store.js'
 
 const DATA_DIR = process.env.LEARNLOOP_DATA_DIR || path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'data');
 const OAUTH_FILE = path.join(DATA_DIR, 'oauth-credentials.json');
-const DSH_OAUTH_FILE = path.join(os.homedir(), '.dsh', '.everything-oauth.json');
+const DSH_OAUTH_FILE = process.env.LEARNLOOP_DSH_OAUTH_FILE
+  || path.join(os.homedir(), '.dsh', '.everything-oauth.json');
+const AUTO_IMPORT_DISABLED_PREFIX = 'oauth_auto_import_disabled_';
+
+function autoImportDisabled(platformId) {
+  return store.getSetting(`${AUTO_IMPORT_DISABLED_PREFIX}${platformId}`) === '1';
+}
+
+function setAutoImportDisabled(platformId, disabled) {
+  store.setSetting(`${AUTO_IMPORT_DISABLED_PREFIX}${platformId}`, disabled ? '1' : '0');
+}
 
 const PLATFORM = Object.freeze({
   codex: {
@@ -108,6 +118,7 @@ class LoginRunner {
       },
       notify: event => this.onEvent(event),
     }).then(() => {
+      setAutoImportDisabled(this.platformId, false);
       syncProvider(this.platformId);
       this.challenge = null;
     }).catch(error => {
@@ -188,7 +199,7 @@ async function importDshOAuthCredential(platform) {
 export async function autoImportDshOAuth() {
   const imported = [];
   for (const platform of Object.values(PLATFORM)) {
-    if (loginRunners.get(platform.id).publicState().running) continue;
+    if (loginRunners.get(platform.id).publicState().running || autoImportDisabled(platform.id)) continue;
     try {
       if (await oauthCredentials.read(platform.providerId)) continue;
       if (await importDshOAuthCredential(platform)) imported.push(platform.id);
@@ -245,6 +256,7 @@ export async function logoutOAuth(platformId) {
   const platform = platformOf(platformId);
   await loginRunners.get(platformId).cancel();
   await oauthModels.logout(platform.providerId);
+  setAutoImportDisabled(platform.id, true);
   store.deleteProviderBySource('oauth', platform.id);
   return oauthStatus({ autoImport: false });
 }
@@ -253,6 +265,7 @@ export async function importOAuthFromDsh(platformId) {
   const platform = platformOf(platformId);
   if (!fs.existsSync(DSH_OAUTH_FILE)) throw new Error('没有找到 DSH Everything OAuth 登录文件');
   await importDshOAuthCredential(platform);
+  setAutoImportDisabled(platform.id, false);
   const providerId = syncProvider(platform.id);
   return { ok: true, provider_id: providerId, ...(await oauthStatus()) };
 }

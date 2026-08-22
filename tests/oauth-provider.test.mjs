@@ -5,9 +5,21 @@ import os from 'node:os';
 import path from 'node:path';
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'learnornot-oauth-provider-'));
+const dshOAuthFile = path.join(dataDir, 'dsh-oauth.json');
 process.env.LEARNLOOP_DATA_DIR = dataDir;
+process.env.LEARNLOOP_DSH_OAUTH_FILE = dshOAuthFile;
+fs.writeFileSync(dshOAuthFile, JSON.stringify({
+  version: 1,
+  credentials: {
+    'openai-codex': { type: 'oauth', access: 'dsh-codex-access', refresh: 'dsh-codex-refresh', expires: Date.now() + 3_600_000 },
+    xai: { type: 'oauth', access: 'dsh-xai-access', refresh: 'dsh-xai-refresh', expires: Date.now() + 3_600_000 },
+  },
+}, null, 2) + '\n', { mode: 0o600 });
 const { store, dumpAll } = await import('../server/db.js');
-const { oauthStatus, oauthCredentials, logoutOAuth, autoImportDshOAuth, reconcileOAuthProviders } = await import('../server/oauth.js');
+const {
+  oauthStatus, oauthCredentials, logoutOAuth, importOAuthFromDsh,
+  autoImportDshOAuth, reconcileOAuthProviders,
+} = await import('../server/oauth.js');
 
 test.after(() => fs.rmSync(dataDir, { recursive: true, force: true }));
 
@@ -64,17 +76,18 @@ test('OAuth status read reconciles only after auto-import and explicit cleanup',
   assert.equal(store.getProvider(grok), undefined);
 });
 
-test('OAuth logout does not auto reconnect from DSH during the same response', async () => {
-  await oauthCredentials.modify('xai', async () => ({
-    type: 'oauth', access: 'local-access', refresh: 'local-refresh', expires: Date.now() + 3_600_000,
-  }));
-  store.upsertOAuthProvider({
-    name: 'Grok', source_id: 'grok', protocol: 'openai-responses',
-    base_url: 'https://api.x.ai/v1', api_key: 'oauth-managed',
-    models: [{ id: 'grok-4.5', name: 'Grok 4.5' }], default_model: 'grok-4.5',
-  });
-  const status = await logoutOAuth('grok');
-  const grok = status.platforms.find(platform => platform.id === 'grok');
-  assert.equal(grok.signed_in, false);
-  assert.equal(await oauthCredentials.read('xai'), undefined);
+test('OAuth logout remains disconnected across later status reads until explicit reconnect', async () => {
+  await importOAuthFromDsh('codex');
+  assert.equal((await oauthStatus()).platforms.find(platform => platform.id === 'codex').signed_in, true);
+
+  const disconnected = await logoutOAuth('codex');
+  assert.equal(disconnected.platforms.find(platform => platform.id === 'codex').signed_in, false);
+  assert.equal(await oauthCredentials.read('openai-codex'), undefined);
+
+  const laterStatus = await oauthStatus();
+  assert.equal(laterStatus.platforms.find(platform => platform.id === 'codex').signed_in, false);
+  assert.equal(await oauthCredentials.read('openai-codex'), undefined);
+
+  await importOAuthFromDsh('codex');
+  assert.equal((await oauthStatus()).platforms.find(platform => platform.id === 'codex').signed_in, true);
 });
