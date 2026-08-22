@@ -3,6 +3,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import busboy from 'busboy';
 import { store, TEXTS_DIR, UPLOADS_DIR, dumpAll, dumpFiles, restoreAll, restoreFiles } from './db.js';
@@ -34,6 +35,14 @@ function runJob(label, fn) {
       job.status = 'failed';
       job.error = e.message;
       log('错误: ' + e.message);
+    } finally {
+      // 已完成任务限量保留，防止长期运行内存增长（每个 job 存着完整 result）
+      if (jobs.size > 100) {
+        for (const [k, v] of jobs) {
+          if (jobs.size <= 100) break;
+          if (v.status !== 'running') jobs.delete(k);
+        }
+      }
     }
   })();
   return job;
@@ -131,6 +140,28 @@ function route(method, pattern, handler) {
   routes.push({ method, rx, keys, handler });
 }
 
+// 上传解析挪 worker 线程 + 后台任务：PDF/EPUB/DOCX 解析是 CPU 密集的同步 JS，
+// 在主线程跑会卡住整个 HTTP 服务（上传大书期间其他页面全部无响应）。
+// worker 起不来（打包环境等极端情况）时退回主线程解析，行为不劣化。
+async function parseDocumentBg(filePath, format, log) {
+  try {
+    return await new Promise((resolve, reject) => {
+      const w = new Worker(new URL('./parse-worker.mjs', import.meta.url));
+      w.on('message', m => { w.terminate(); m.ok ? resolve(m.text) : reject(new Error(m.error)); });
+      w.on('error', err => {
+        try { w.terminate(); } catch {}
+        reject(Object.assign(new Error(`解析线程异常：${err.message}`), { workerFailed: true }));
+      });
+      w.on('exit', code => { if (code !== 0) reject(new Error(`解析线程异常退出（${code}）`)); });
+      w.postMessage({ path: filePath, format });
+    });
+  } catch (e) {
+    if (!e.workerFailed) throw e;
+    log('解析线程不可用，退回主线程解析');
+    return parseDocument(filePath, format);
+  }
+}
+
 // 书籍
 route('GET', '/api/books', async () => store.listBooks());
 route('POST', '/api/upload', async (req) => {
@@ -138,16 +169,23 @@ route('POST', '/api/upload', async (req) => {
   const format = detectFormat(file.filename);
   const title = path.basename(file.filename, path.extname(file.filename));
   const bookId = Number(store.addBook({ title, filename: file.filename, format, status: 'parsing' }).lastInsertRowid);
-  try {
-    const text = await parseDocument(file.path, format);
-    if (!text || text.trim().length < 50) throw new Error('解析出的文本太少，可能是扫描版 PDF（图片型）或文件损坏');
-    fs.writeFileSync(path.join(TEXTS_DIR, `${bookId}.txt`), text);
-    store.setBookStatus(bookId, 'parsed');
-  } catch (e) {
-    store.setBookStatus(bookId, 'failed', e.message);
-    throw e;
-  }
-  return store.getBook(bookId);
+  const job = runJob(`解析上传《${title}》`, async (log) => {
+    try {
+      const sizeMb = (fs.statSync(file.path).size / 1048576).toFixed(1);
+      log(`正在解析 ${format.toUpperCase()}（${sizeMb}MB）——大文件可能要一会儿`);
+      const text = await parseDocumentBg(file.path, format, log);
+      if (!text || text.trim().length < 50) throw new Error('解析出的文本太少，可能是扫描版 PDF（图片型）或文件损坏');
+      fs.writeFileSync(path.join(TEXTS_DIR, `${bookId}.txt`), text);
+      log(`解析完成，约 ${Math.round(text.length / 1000)}k 字`);
+      store.setBookStatus(bookId, 'parsed');
+      return store.getBook(bookId);
+    } catch (e) {
+      // 后台任务失败也要把书状态写回 failed，否则书架会永久停在「解析中」且无法重试
+      store.setBookStatus(bookId, 'failed', e.message);
+      throw e;
+    }
+  });
+  return { jobId: job.id, bookId };
 });
 route('GET', '/api/books/:id', async (req, { id }) => {
   const book = store.getBook(Number(id));
@@ -504,9 +542,9 @@ route('POST', '/api/chat/session/archive', async (req, _p, body) => {
   return { session };
 });
 route('GET', '/api/chat/sessions', async () => store.listArchivedSessions());
-// 维护：给占位标题的归档会话补 AI 主题总结
+// 维护：给占位标题的归档会话补 AI 主题总结（限 20 个/次，防止一次串行几十个 LLM 调用把请求挂死几分钟）
 route('POST', '/api/chat/sessions/retitle', async () => {
-  const rows = store.raw(`SELECT id FROM chat_sessions WHERE archived=1 AND (title IS NULL OR title IN ('之前的讨论','未命名讨论'))`);
+  const rows = store.raw(`SELECT id FROM chat_sessions WHERE archived=1 AND (title IS NULL OR title IN ('之前的讨论','未命名讨论'))`).slice(0, 20);
   const done = [];
   for (const r of rows) {
     const t = await summarizeChatSession(r.id);
@@ -817,12 +855,14 @@ const server = http.createServer(async (req, res) => {
       }
       return bad(res, '接口不存在', 404);
     }
-    // 静态
+    // 静态（异步读文件：不阻塞事件循环；大文件如字体走线程池）
     let fp = path.normalize(path.join(PUBLIC_DIR, u.pathname === '/' ? 'index.html' : u.pathname));
     if (!fp.startsWith(PUBLIC_DIR)) return bad(res, 'forbidden', 403);
-    if (!fs.existsSync(fp) || fs.statSync(fp).isDirectory()) fp = path.join(PUBLIC_DIR, 'index.html');
+    const stat = await fs.promises.stat(fp).catch(() => null);
+    if (!stat?.isFile()) fp = path.join(PUBLIC_DIR, 'index.html');
     const ext = path.extname(fp);
-    send(res, 200, fs.readFileSync(fp), {
+    const data = await fs.promises.readFile(fp);
+    send(res, 200, data, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': 'no-cache',   // 每次协商重取，避免启发式缓存拿到旧前端
     });
