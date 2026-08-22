@@ -536,6 +536,47 @@ export function restoreAll(payload) {
   return { restored: BACKUP_TABLES.filter(t => Array.isArray(tables[t])).length };
 }
 
+// 教材正文（texts/，解析产物）与原书存档（uploads/）一并进备份：
+// 只备数据库不备文件的话，换机恢复后讲义生成、划词提问、原文查看都会 ENOENT
+export function dumpFiles() {
+  const readDir = dir => {
+    const out = {};
+    try {
+      for (const f of fs.readdirSync(dir)) {
+        const fp = path.join(dir, f);
+        if (!fs.statSync(fp).isFile()) continue;
+        out[f] = fs.readFileSync(fp);
+      }
+    } catch { /* 目录不存在时导出为空 */ }
+    return out;
+  };
+  return {
+    texts: Object.fromEntries(Object.entries(readDir(TEXTS_DIR)).map(([k, v]) => [k, v.toString('utf8')])),
+    uploads: Object.fromEntries(Object.entries(readDir(UPLOADS_DIR)).map(([k, v]) => [k, v.toString('base64')])),
+  };
+}
+
+export function restoreFiles(files) {
+  if (!files || typeof files !== 'object') return { texts: 0, uploads: 0 };
+  const write = (dir, entries, decode) => {
+    let n = 0;
+    for (const [name, content] of Object.entries(entries || {})) {
+      const base = path.basename(String(name)); // 备份里的文件名只取 basename，防路径穿越
+      if (!base || base === '.' || base === '..' || base.startsWith('.')) continue;
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, base), decode(content));
+        n++;
+      } catch { /* 单个文件失败不阻断整体恢复 */ }
+    }
+    return n;
+  };
+  return {
+    texts: write(TEXTS_DIR, files.texts, c => Buffer.from(String(c), 'utf8')),
+    uploads: write(UPLOADS_DIR, files.uploads, c => Buffer.from(String(c), 'base64')),
+  };
+}
+
 export const TEXTS_DIR = path.join(DATA_DIR, 'texts');
 export const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(TEXTS_DIR, { recursive: true });

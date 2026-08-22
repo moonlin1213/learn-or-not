@@ -133,7 +133,7 @@ POST {地址}{聊天路径}  {content, model_content}  → SSE 流：data: {"typ
 | 内容 | 位置 |
 |---|---|
 | 全部学习数据 | `data/learnloop.db`（SQLite，已被 .gitignore） |
-| 迁移/换机 | 设置 → 数据备份，导出/恢复 JSON |
+| 迁移/换机 | 设置 → 数据备份，导出/恢复 JSON（含教材正文与原书文件） |
 | 端口 | 默认 3210，`PORT` 环境变量可改 |
 | 数据目录 | `LEARNLOOP_DATA_DIR` 环境变量，或 `local.config.json` 的 `dataDir` |
 | 代理 | `local.config.json` 的 `proxy`（默认不设代理） |

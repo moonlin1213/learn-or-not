@@ -2008,7 +2008,8 @@ async function renderSettings() {
     if (!confirm('恢复会覆盖当前全部学习数据，确定继续吗？')) return;
     try {
       const r = await api('/api/backup/restore', { method: 'POST', body: payload });
-      toast(`已恢复 ${r.restored} 张表的数据`);
+      const files = r.files ? `、${r.files.texts} 份教材正文、${r.files.uploads} 份原书` : '';
+      toast(`已恢复 ${r.restored} 张表的数据${files}`);
       renderSettings();
       refreshBadge();
     } catch (err) { toast(err.message, true); }

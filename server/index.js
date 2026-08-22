@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import busboy from 'busboy';
-import { store, TEXTS_DIR, UPLOADS_DIR, dumpAll, restoreAll } from './db.js';
+import { store, TEXTS_DIR, UPLOADS_DIR, dumpAll, dumpFiles, restoreAll, restoreFiles } from './db.js';
 import { detectFormat, parseDocument } from './parser.js';
 import { importFromDsh, chat } from './llm.js';
 import { generateOutline, generateLesson, gradeQuiz, gradeRetake, askQuestion, chatWithTeacher, generateWeeklyReport, locateSource, summarizeChatSession } from './pipeline.js';
@@ -274,11 +274,12 @@ route('POST', '/api/focus', async (req, _p, body) => {
 });
 
 // 备份 / 恢复
-route('GET', '/api/backup', async () => dumpAll());
+route('GET', '/api/backup', async () => ({ ...dumpAll(), files: dumpFiles() }));
 route('POST', '/api/backup/restore', async (req, _p, body) => {
   const result = restoreAll(body);
+  const files = restoreFiles(body?.files);
   await reconcileOAuthProviders(); // OAuth 令牌不进备份；若本机仍有登录，恢复对应 provider 外壳。
-  return result;
+  return { ...result, files };
 });
 
 // 翰林院 · Obsidian 沉淀
