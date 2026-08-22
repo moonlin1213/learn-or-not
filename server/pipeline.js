@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { store, TEXTS_DIR } from './db.js';
-import { chat, extractJson } from './llm.js';
+import { chat, chatStream, extractJson } from './llm.js';
 
 const MAX_OUTLINE_CHARS = 48000;   // 大纲单次送入上限
 const MAP_CHUNK_CHARS = 20000;     // 超长文本 map 阶段块大小
@@ -335,7 +335,7 @@ const TUTOR_MODES = {
   examiner: '当前是「考官模式」：你是严格的考官，围绕当前教材内容连环出题拷问宝宝。一次只出一题（选择或简答均可），宝宝作答后再判定并讲评，然后出下一题；难度循序渐进，发现薄弱点就多追问几轮。',
 };
 
-export async function chatWithTeacher({ bookId, lessonId, message, selection, providerId, model, mode }) {
+export async function chatWithTeacher({ bookId, lessonId, message, selection, providerId, model, mode, onText }) {
   const book = bookId ? store.getBook(bookId) : null;
   let p = activeProvider();
   if (providerId) {
@@ -384,13 +384,17 @@ export async function chatWithTeacher({ bookId, lessonId, message, selection, pr
   }
 
   const modeRule = TUTOR_MODES[mode] ? `\n\n${TUTOR_MODES[mode]}` : '';
-  const answer = await chat(p, useModel, [
+  const teacherMessages = [
     sys(`你是一位耐心、博学的私教老师${book ? `，正在陪学生读《${book.title}》` : '，学生随时会过来插嘴问问题'}。
 风格要求：称呼学生「宝宝」，不用「同学们/大家」；先直接回应问题，再展开；讲解通俗，善用类比和例子；${book ? '回答紧扣教材内容，学生跑题时温和拉回来；' : '没有教材上下文时就凭学识回答，知之为知之；'}语气亲切自然，像面对面辅导。回答用 markdown，适度分段，不要过长（一般 300 字以内，除非学生要求详细展开）。不要使用 emoji 表情符号。${modeRule}`),
     usr(`${context}
 
 ${synopsis ? `【早前讨论小结】\n${synopsis}\n\n` : ''}${pendingText ? `【稍早的对话】\n${pendingText}\n\n` : ''}${history ? `【最近的对话】\n${history}\n\n` : ''}${selection ? `宝宝选中的原文：「${selection}」\n\n` : ''}宝宝：${message}`),
-  ], { maxTokens: 8000 });
+  ];
+  // 带 onText（SSE 场景）时走流式适配器，边生成边推送；否则保持原单次调用
+  const answer = onText
+    ? await chatStream(p, useModel, teacherMessages, { maxTokens: 8000 }, onText)
+    : await chat(p, useModel, teacherMessages, { maxTokens: 8000 });
 
   store.addChat({ book_id: bookId || null, lesson_id: lessonId || null, role: 'user', content: message, session_id: session.id });
   store.addChat({ book_id: bookId || null, lesson_id: lessonId || null, role: 'assistant', content: answer, model_label: `${p.name} · ${useModel}`, session_id: session.id });

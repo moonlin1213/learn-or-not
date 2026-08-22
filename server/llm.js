@@ -35,6 +35,44 @@ function anthropicUrl(baseURL) {
   return b.endsWith('/v1') ? `${b}/messages` : `${b}/v1/messages`;
 }
 
+// SSE 流式请求：onEvent 收到每个 data: 帧的已解析 JSON；
+// 每读到一块数据就重置超时计时器（按「无数据间隔」而非「总时长」触发超时）
+async function requestStream(url, { headers = {}, body, onEvent, timeoutMs = 300000 }) {
+  const ctrl = new AbortController();
+  let timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: ctrl.signal });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text.slice(0, 500)}`);
+    }
+    if (!res.body) throw new Error('上游不支持流式响应');
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      clearTimeout(timer);
+      timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const frame = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        for (const line of frame.split('\n')) {
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload || payload === '[DONE]') continue;
+          try { onEvent(JSON.parse(payload)); } catch { /* 忽略无法解析的帧 */ }
+        }
+      }
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // messages: [{role:'system'|'user'|'assistant', content:string}]
 // 统一返回 string
 export async function chat(provider, model, messages, { maxTokens = 16000, temperature } = {}) {
@@ -87,6 +125,58 @@ export async function chat(provider, model, messages, { maxTokens = 16000, tempe
     return text;
   }
   throw new Error(`未知协议: ${protocol}`);
+}
+
+// 流式版 chat：onText(截至目前全文) 每个增量回调一次（与 companionChat 语义一致），
+// 返回最终全文。oauth provider 不支持流式，退化为一次性吐全文。
+export async function chatStream(provider, model, messages, { maxTokens = 16000, temperature } = {}, onText = () => {}) {
+  if (provider.source === 'oauth') {
+    const text = await oauthChat(provider.source_id, model, messages, { maxTokens, temperature });
+    onText(text);
+    return text;
+  }
+  const { protocol, base_url, api_key, extra_headers = {} } = provider;
+  let full = '';
+  const emit = delta => { if (delta) { full += delta; onText(full); } };
+
+  if (protocol === 'openai-completions') {
+    const body = { model, messages, max_tokens: maxTokens, stream: true };
+    if (temperature != null) body.temperature = temperature;
+    await requestStream(`${base_url.replace(/\/+$/, '')}/chat/completions`, {
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api_key}`, ...extra_headers },
+      body,
+      onEvent: j => { const d = j?.choices?.[0]?.delta?.content; if (typeof d === 'string') emit(d); },
+    });
+  } else if (protocol === 'openai-responses') {
+    const input = messages.map(m => ({ role: m.role === 'system' ? 'developer' : m.role, content: m.content }));
+    const body = { model, input, max_output_tokens: Math.max(maxTokens, 16000), stream: true };
+    if (temperature != null) body.temperature = temperature;
+    await requestStream(`${base_url.replace(/\/+$/, '')}/responses`, {
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api_key}`, ...extra_headers },
+      body,
+      onEvent: j => { if (j?.type === 'response.output_text.delta' && typeof j.delta === 'string') emit(j.delta); },
+    });
+  } else if (protocol === 'anthropic-messages') {
+    const system = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
+    const msgs = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
+    const body = { model, max_tokens: maxTokens, messages: msgs, stream: true };
+    if (system) body.system = system;
+    if (temperature != null) body.temperature = temperature;
+    await requestStream(anthropicUrl(base_url), {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': api_key,
+        'anthropic-version': '2023-06-01',
+        ...extra_headers,
+      },
+      body,
+      onEvent: j => { if (j?.type === 'content_block_delta' && typeof j?.delta?.text === 'string') emit(j.delta.text); },
+    });
+  } else {
+    throw new Error(`未知协议: ${protocol}`);
+  }
+  if (!full) throw new Error('上游流式响应没有返回内容');
+  return full;
 }
 
 // 从 LLM 输出中提取 JSON（容忍 markdown 围栏与前后杂文本）

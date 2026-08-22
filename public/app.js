@@ -2587,60 +2587,72 @@ async function sendChat() {
   box.insertAdjacentHTML('beforeend', `<div class="chat-msg assistant typing" id="chat-typing"><div class="bubble">…</div></div>`);
   box.scrollTop = box.scrollHeight;
   const ctx = chatContext();
+  const isCompanion = chatState.model?.provider_id === 'companion';
+  const compName = chatState.companion?.name || '伙伴';
   try {
-    const payload = { message: msg, selection, provider_id: chatState.model?.provider_id, model: chatState.model?.model, mode: chatState.modeId || undefined };
-    if (chatState.model?.provider_id === 'companion') {
-      // 陪伴 agent：SSE 流式渲染
-      const compName = chatState.companion?.name || '伙伴';
-      const url = ctx.type === 'lesson' ? `/api/lessons/${ctx.id}/chat` : '/api/chat';
-      if (ctx.type === 'book') payload.book_id = ctx.id;
-      const typing = $('#chat-typing');
-      const bubble = typing?.querySelector('.bubble');
-      bubble?.classList.add('markdown');
-      if (bubble) bubble.textContent = '';
-      let answer = '';
-      let errMsg = '';
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!res.ok || !res.body) throw new Error(`服务器返回 ${res.status}`);
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let buf = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        let i;
-        while ((i = buf.indexOf('\n\n')) >= 0) {
-          const frame = buf.slice(0, i);
-          buf = buf.slice(i + 2);
-          const line = frame.split('\n').find(l => l.startsWith('data:'));
-          if (!line) continue;
-          let ev;
-          try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
-          if (ev.error) { errMsg = ev.error; }
-          else if (typeof ev.content === 'string') {
-            answer = ev.content;
-            if (bubble) { bubble.innerHTML = md(answer); box.scrollTop = box.scrollHeight; }
-          }
-          if (ev.done && ev.answer) answer = ev.answer;
-        }
-      }
-      if (errMsg) throw new Error(errMsg);
-      if (!answer) throw new Error(`${compName}没有回话`);
-      if (typing) {
-        typing.removeAttribute('id');
-        typing.classList.remove('typing');
-        if (bubble) bubble.innerHTML = md(answer);
-        typing.insertAdjacentHTML('beforeend', `<div class="msg-model">${esc(compName)} · 陪伴</div>`);
-        renderMath(typing);
-      }
+    const payload = { message: msg, selection, provider_id: chatState.model?.provider_id, model: chatState.model?.model };
+    if (isCompanion) {
+      // 陪伴 agent 以本色回答，不套导师模式
     } else {
-      const r = ctx.type === 'lesson'
-        ? await api(`/api/lessons/${ctx.id}/chat`, { method: 'POST', body: payload })
-        : await api('/api/chat', { method: 'POST', body: { ...payload, book_id: ctx.type === 'book' ? ctx.id : undefined } });
-      $('#chat-typing')?.remove();
-      box.insertAdjacentHTML('beforeend', chatBubble({ role: 'assistant', content: r.answer, model_label: r.model_label }));
-      renderMath(box.lastElementChild);
+      payload.mode = chatState.modeId || undefined;
+      payload.stream = true; // 云端私教也走 SSE 流式（与陪伴同一事件协议）
+    }
+    if (ctx.type === 'book') payload.book_id = ctx.id;
+    const url = ctx.type === 'lesson' ? `/api/lessons/${ctx.id}/chat` : '/api/chat';
+    const typing = $('#chat-typing');
+    const bubble = typing?.querySelector('.bubble');
+    bubble?.classList.add('markdown');
+    if (bubble) bubble.textContent = '';
+    let answer = '';
+    let errMsg = '';
+    let modelLabel = '';
+    // 流式渲染节流：md() 是全量重解析 + innerHTML 替换，逐 chunk 渲染长回答会 O(n²)
+    let lastPaint = 0;
+    let paintTimer = null;
+    const paint = () => { if (bubble) { bubble.innerHTML = md(answer); box.scrollTop = box.scrollHeight; } };
+    const paintThrottled = () => {
+      const now = Date.now();
+      if (now - lastPaint >= 120) { lastPaint = now; paint(); }
+      else { clearTimeout(paintTimer); paintTimer = setTimeout(() => { lastPaint = Date.now(); paint(); }, 120); }
+    };
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok || !res.body) {
+      let detail = '';
+      try { detail = (await res.json()).error || ''; } catch { /* 非 JSON 错误体 */ }
+      throw new Error(detail || `服务器返回 ${res.status}`);
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const frame = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        const line = frame.split('\n').find(l => l.startsWith('data:'));
+        if (!line) continue;
+        let ev;
+        try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
+        if (ev.error) { errMsg = ev.error; }
+        else if (typeof ev.content === 'string') {
+          answer = ev.content;
+          paintThrottled();
+        }
+        if (ev.model_label) modelLabel = ev.model_label;
+        if (ev.done && ev.answer) answer = ev.answer;
+      }
+    }
+    if (errMsg) throw new Error(errMsg);
+    if (!answer) throw new Error(isCompanion ? `${compName}没有回话` : '老师没有回话');
+    if (typing) {
+      typing.removeAttribute('id');
+      typing.classList.remove('typing');
+      if (bubble) bubble.innerHTML = md(answer);
+      typing.insertAdjacentHTML('beforeend', `<div class="msg-model">${esc(modelLabel || (isCompanion ? `${compName} · 陪伴` : ''))}</div>`);
+      renderMath(typing);
     }
   } catch (e) {
     $('#chat-typing')?.remove();

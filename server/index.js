@@ -413,10 +413,12 @@ route('POST', '/api/lessons/:id/chat', async (req, { id }, body, _q, res) => {
   if (body.provider_id === 'companion') {
     return chatWithCompanion({ bookId: lesson.book_id, lessonId: Number(id), message: body.message.trim(), selection: body.selection }, res);
   }
-  return chatWithTeacher({
+  const args = {
     bookId: lesson.book_id, lessonId: Number(id),
     message: body.message.trim(), selection: body.selection, providerId: body.provider_id, model: body.model, mode: body.mode,
-  });
+  };
+  if (body.stream) return chatWithTeacherSse(args, res);
+  return chatWithTeacher(args);
 });
 
 // 聊天会话：恢复 / 新开 / 手动归档 / 列表 / 回看
@@ -565,10 +567,12 @@ route('POST', '/api/chat', async (req, _p, body, _q, res) => {
   if (body.provider_id === 'companion') {
     return chatWithCompanion({ bookId: body.book_id || null, lessonId: null, message: body.message.trim(), selection: body.selection }, res);
   }
-  return chatWithTeacher({
+  const args = {
     bookId: body.book_id || null, lessonId: null,
     message: body.message.trim(), selection: body.selection, providerId: body.provider_id, model: body.model, mode: body.mode,
-  });
+  };
+  if (body.stream) return chatWithTeacherSse(args, res);
+  return chatWithTeacher(args);
 });
 
 // 自定义 CSS（设置页 snippets）：以样式表形式直接 link 进页面
@@ -689,6 +693,20 @@ function mask(k) { return k && k.length > 8 ? k.slice(0, 4) + '…' + k.slice(-4
 const HANDLED = Symbol('handled'); // handler 自己接管了 res（SSE 流式）
 const sseHead = (res) => res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
 const sseSend = (res, obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
+
+// 云端私教的 SSE 流式变体：与 chatWithCompanion 同一事件协议
+// （data:{content:截至目前全文} → data:{done,answer,model_label} / data:{error}）
+async function chatWithTeacherSse(args, res) {
+  sseHead(res);
+  try {
+    const r = await chatWithTeacher({ ...args, onText: t => sseSend(res, { content: t }) });
+    sseSend(res, { done: true, answer: r.answer, model_label: r.model_label });
+  } catch (e) {
+    sseSend(res, { error: e.message });
+  }
+  res.end();
+  return HANDLED;
+}
 
 // 把聊天转给陪伴 agent。不打私教 prompt——它以本色回答；
 // 学习上下文走 model_content（它能看到，它那边界面里学生的原话保持干净）。
