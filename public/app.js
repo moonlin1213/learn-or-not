@@ -2978,6 +2978,23 @@ window.addEventListener('load', () => {
       $('#search-overlay').classList.contains('hidden') ? openSearch() : closeSearch();
     }
   });
+
+  // 键盘流：术语卡/错题本 j、k 或 ←、→ 翻看；课节页 1-4 直达四个页签（输入框内不打扰）
+  document.addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+    const k = e.key;
+    const prev = $('#td-prev') || $('#wd-prev');
+    const next = $('#td-next') || $('#wd-next');
+    if ((k === 'j' || k === 'ArrowRight') && next) { e.preventDefault(); next.click(); return; }
+    if ((k === 'k' || k === 'ArrowLeft') && prev) { e.preventDefault(); prev.click(); return; }
+    if ('1234'.includes(k) && document.body.dataset.view === 'lesson') {
+      const tabMap = { 1: 'preguide', 2: 'content', 3: 'terms', 4: 'quiz' };
+      const btn = $(`.tabs button[data-tab="${tabMap[k]}"]`);
+      if (btn) { e.preventDefault(); btn.click(); }
+    }
+  });
 });
 
 // ---------- 番茄钟 ----------
