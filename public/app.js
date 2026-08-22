@@ -840,9 +840,10 @@ function renderQuiz(body, lesson, quiz) {
 function paintQuizResult(body, quiz, results, total) {
   const res = $('#quiz-result');
   res.classList.remove('hidden');
-  const wrong = results.filter(r => !r.correct).length;
+  const wrong = results.filter(r => !r.correct && !r.ungraded).length;
+  const ungraded = results.filter(r => r.ungraded).length;
   res.innerHTML = `<div class="card quiz-result-banner" style="border-color:${wrong ? 'var(--rose)' : 'var(--sage)'}">
-    得分 <b style="font-size:1.5em">${total}</b> 分${wrong ? ` · ${wrong} 道题进了错题本` : ' · 全对，漂亮！'}</div>`;
+    得分 <b style="font-size:1.5em">${total}</b> 分${wrong ? ` · ${wrong} 道题进了错题本` : ' · 全对，漂亮！'}${ungraded ? ` · ${ungraded} 题未批改（未计分）` : ''}</div>`;
   for (const r of results) {
     const qEl = $(`.quiz-q[data-i="${r.index}"]`, body);
     if (!qEl) continue;
@@ -855,7 +856,7 @@ function paintQuizResult(body, quiz, results, total) {
       });
     }
     qEl.insertAdjacentHTML('beforeend', `<div class="quiz-feedback">
-      ${r.correct ? '✓ 回答正确' : `✗ 你的答案：${esc(r.user_answer || '（空）')} · 正确答案：${esc(r.correct_answer)}`}<br>${esc(r.feedback || '')}</div>`);
+      ${r.ungraded ? '○ 未批改（未计分、未记入错题本）' : r.correct ? '✓ 回答正确' : `✗ 你的答案：${esc(r.user_answer || '（空）')} · 正确答案：${esc(r.correct_answer)}`}<br>${esc(r.feedback || '')}</div>`);
   }
   $('#submit-quiz')?.remove();
   res.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1524,10 +1525,11 @@ async function startRetake(bookId) {
     try {
       const { total, count, results } = await api('/api/wrong/retake/grade', { method: 'POST', body: { answers } });
       const mastered = results.filter(r => r.mastered).length;
+      const ungraded = results.filter(r => r.ungraded).length;
       const banner = $('#retake-result');
       banner.classList.remove('hidden');
-      banner.innerHTML = `<div class="card quiz-result-banner" style="border-color:${total === count ? 'var(--sage)' : 'var(--rose)'}">
-        答对 <b style="font-size:1.5em">${total}</b> / ${count} 道${mastered ? ` · ${mastered} 道连对两次，已自动掌握` : ''}${total === count && !mastered ? ' · 全对，漂亮！' : ''}</div>
+      banner.innerHTML = `<div class="card quiz-result-banner" style="border-color:${count > 0 && total === count ? 'var(--sage)' : 'var(--rose)'}">
+        答对 <b style="font-size:1.5em">${total}</b> / ${count} 道${ungraded ? ` · ${ungraded} 题未批改（进度保持不变）` : ''}${mastered ? ` · ${mastered} 道连对两次，已自动掌握` : ''}${count > 0 && total === count && !mastered ? ' · 全对，漂亮！' : ''}</div>
         <div class="rt-actions" style="margin-top:14px"><button class="primary" id="retake-back">返回错题本</button></div>`;
       for (const r of results) {
         const i = items.findIndex(w => w.id === r.id);
@@ -1541,8 +1543,8 @@ async function startRetake(bookId) {
           });
         }
         qEl.insertAdjacentHTML('beforeend', `<div class="quiz-feedback">
-          ${r.correct ? '✓ 回答正确' : '✗ 正确答案：' + esc(r.correct_answer)}
-          ${r.mastered ? ' · 连对两次，已标记掌握' : r.correct ? ` · 连对 ${r.streak} 次，再对一次即掌握` : ''}
+          ${r.ungraded ? '○ 未批改（连对进度保持不变，可以再试一次）' : r.correct ? '✓ 回答正确' : '✗ 正确答案：' + esc(r.correct_answer)}
+          ${r.mastered ? ' · 连对两次，已标记掌握' : !r.ungraded && r.correct ? ` · 连对 ${r.streak} 次，再对一次即掌握` : ''}
           <br>${esc(r.feedback || '').replace(/\n/g, '<br>')}</div>`);
       }
       $('#retake-submit')?.remove();

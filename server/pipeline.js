@@ -173,7 +173,7 @@ export async function gradeQuiz(lessonId, answers) {
   for (let i = 0; i < quiz.length; i++) {
     const q = quiz[i];
     const ua = (answers[i] ?? '').toString().trim();
-    let correct = false, score = 0, feedback = q.explanation || '';
+    let correct = false, score = 0, feedback = q.explanation || '', ungraded = false;
     if (q.type === 'choice') {
       correct = ua.toUpperCase() === String(q.answer).trim().toUpperCase();
       score = correct ? 1 : 0;
@@ -187,11 +187,15 @@ export async function gradeQuiz(lessonId, answers) {
         correct = !!j.correct;
         score = Math.max(0, Math.min(1, Number(j.score) || (j.correct ? 1 : 0)));
         feedback = j.feedback ? `${j.feedback}\n\n解析：${q.explanation || ''}` : feedback;
-      } catch { /* 保留默认 */ }
+      } catch {
+        // AI 返回无法解析：标记未批改，不记错题、不计分，不能静默当成答错
+        ungraded = true;
+        feedback = '这道题这次没有批改成功（AI 返回无法解析），未计分、未记入错题本。\n\n解析：' + (q.explanation || '');
+      }
     }
-    scoreSum += score;
-    results.push({ index: i, type: q.type, question: q.question, options: q.options, correct_answer: q.answer, user_answer: ua, correct, score, feedback });
-    if (!correct) {
+    if (!ungraded) scoreSum += score;
+    results.push({ index: i, type: q.type, question: q.question, options: q.options, correct_answer: q.answer, user_answer: ua, correct, score, feedback, ungraded: ungraded || undefined });
+    if (!correct && !ungraded) {
       store.addWrong({
         book_id: lesson.book_id, lesson_id: lessonId, question: q.question, qtype: q.type,
         options: q.options ? JSON.stringify(q.options) : null,
@@ -199,7 +203,9 @@ export async function gradeQuiz(lessonId, answers) {
       });
     }
   }
-  const total = Math.round((scoreSum / quiz.length) * 100);
+  const gradedCount = quiz.length - results.filter(r => r.ungraded).length;
+  if (!gradedCount) throw new Error('简答题批改暂时失败（AI 返回无法解析），请稍后重试交卷');
+  const total = Math.round((scoreSum / gradedCount) * 100);
   store.setLessonStudy(lessonId, 'done', total);
   // 交卷即推进到下一课；冷启动恢复课程进度时不会停在已经完成的本课。
   const nextLesson = store.nextLesson(lesson.book_id, lessonId);
@@ -265,23 +271,24 @@ export async function gradeRetake(items) {
       }
     } catch { /* 批改失败走兜底 */ }
     for (const gi of shortIdx) {
-      if (!graded[gi]) graded[gi] = { i: gi, correct: false, score: 0, feedback: '这次没批改成功，可以再试一次。\n\n解析：' + (rows[gi].w.explanation || '') };
+      if (!graded[gi]) graded[gi] = { i: gi, ungraded: true, feedback: '这次没批改成功，本题未计分、连对进度保持不变，可以再试一次。\n\n解析：' + (rows[gi].w.explanation || '') };
     }
   }
 
-  // 落库：连对 streak，连对 2 次自动掌握；答错清零并回到未掌握
+  // 落库：连对 streak，连对 2 次自动掌握；答错清零并回到未掌握。未批改的题不动库、保持原进度
   const results = rows.map((r, i) => {
     const g = graded[i];
-    const upd = store.recordRetake(r.w.id, g.correct);
+    const upd = g.ungraded ? null : store.recordRetake(r.w.id, g.correct);
     return {
       id: r.w.id, question: r.w.question, qtype: r.w.qtype,
       options: r.w.options ? JSON.parse(r.w.options) : null,
       correct_answer: r.w.correct_answer, user_answer: r.ua,
-      correct: g.correct, feedback: g.feedback,
-      streak: upd?.streak ?? 0, mastered: upd?.mastered ?? 0,
+      correct: !g.ungraded && g.correct, ungraded: g.ungraded || undefined, feedback: g.feedback,
+      streak: upd?.streak ?? r.w.streak ?? 0, mastered: upd?.mastered ?? r.w.mastered ?? 0,
     };
   });
-  return { total: results.filter(r => r.correct).length, count: results.length, results };
+  const gradedResults = results.filter(r => !r.ungraded);
+  return { total: gradedResults.filter(r => r.correct).length, count: gradedResults.length, results };
 }
 
 // ---------- 答疑 ----------
