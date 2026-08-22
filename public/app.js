@@ -1692,9 +1692,9 @@ async function renderSettings() {
     const state = platform.signed_in ? '已连接' : login.running ? '等待授权' : login.error ? '连接失败' : '未连接';
     const stateClass = platform.signed_in ? 'connected' : login.error ? 'failed' : login.running ? 'waiting' : '';
     const challenge = login.challenge;
-    const importAction = oauth.dsh_available
+    const importAction = platform.local_login_available
       ? '<button class="small primary" data-oauth-act="import">导入本机登录态</button>'
-      : '<span class="oauth-local-hint">未检测到本机 DSH 登录态</span>';
+      : `<span class="oauth-local-hint">未检测到本机 ${esc(platform.name)} 登录态</span>`;
     return `<article class="oauth-card ${stateClass}" data-platform="${esc(platform.id)}">
       <div class="oauth-card-head">
         <div><b>${esc(platform.name)}</b><span>${esc(platform.description)}</span></div>
@@ -1875,7 +1875,7 @@ async function renderSettings() {
       <div class="oauth-suite-head">
         <div>
           <h2>订阅账户</h2>
-          <p>用官方 OAuth 连接现有订阅。令牌存进仅当前用户可读的独立文件，不进入学习备份，也不会显示在页面里。</p>
+          <p>从本机 DSH OAuth 凭据导入现有订阅登录态。令牌存进仅当前用户可读的独立文件，不进入学习备份，也不会显示在页面里。</p>
         </div>
         <span class="tag green">OAuth</span>
       </div>

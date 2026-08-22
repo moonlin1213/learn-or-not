@@ -15,7 +15,7 @@ fs.writeFileSync(dshOAuthFile, JSON.stringify({
     xai: { type: 'oauth', access: 'dsh-xai-access', refresh: 'dsh-xai-refresh', expires: Date.now() + 3_600_000 },
   },
 }, null, 2) + '\n', { mode: 0o600 });
-const { store, dumpAll } = await import('../server/db.js');
+const { store, dumpAll, restoreAll } = await import('../server/db.js');
 const {
   oauthStatus, oauthCredentials, logoutOAuth, importOAuthFromDsh, startOAuthLogin,
   autoImportDshOAuth, reconcileOAuthProviders,
@@ -79,6 +79,8 @@ test('OAuth status read reconciles only after auto-import and explicit cleanup',
 test('OAuth logout remains disconnected across later status reads until explicit reconnect', async () => {
   await importOAuthFromDsh('codex');
   assert.equal((await oauthStatus()).platforms.find(platform => platform.id === 'codex').signed_in, true);
+  const preDisconnectBackup = dumpAll();
+  assert.equal(preDisconnectBackup.tables.settings.some(row => row.key.startsWith('oauth_auto_import_disabled_')), false);
 
   const disconnected = await logoutOAuth('codex');
   assert.equal(disconnected.platforms.find(platform => platform.id === 'codex').signed_in, false);
@@ -88,8 +90,28 @@ test('OAuth logout remains disconnected across later status reads until explicit
   assert.equal(laterStatus.platforms.find(platform => platform.id === 'codex').signed_in, false);
   assert.equal(await oauthCredentials.read('openai-codex'), undefined);
 
+  restoreAll(preDisconnectBackup);
+  const afterRestore = await oauthStatus();
+  assert.equal(afterRestore.platforms.find(platform => platform.id === 'codex').signed_in, false);
+  assert.equal(await oauthCredentials.read('openai-codex'), undefined);
+
   await importOAuthFromDsh('codex');
   assert.equal((await oauthStatus()).platforms.find(platform => platform.id === 'codex').signed_in, true);
+});
+
+test('OAuth status reports local login availability per platform', async () => {
+  const original = fs.readFileSync(dshOAuthFile, 'utf8');
+  try {
+    const document = JSON.parse(original);
+    delete document.credentials.xai;
+    fs.writeFileSync(dshOAuthFile, JSON.stringify(document, null, 2) + '\n', { mode: 0o600 });
+    const status = await oauthStatus({ autoImport: false });
+    assert.equal(status.platforms.find(platform => platform.id === 'codex').local_login_available, true);
+    assert.equal(status.platforms.find(platform => platform.id === 'grok').local_login_available, false);
+    await assert.rejects(importOAuthFromDsh('grok'), /没有找到可用的 Grok 本机登录态/);
+  } finally {
+    fs.writeFileSync(dshOAuthFile, original, { mode: 0o600 });
+  }
 });
 
 test('subscription platforms reject direct official OAuth and expose local import only', async () => {

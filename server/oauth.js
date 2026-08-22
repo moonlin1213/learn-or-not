@@ -182,16 +182,26 @@ class LoginRunner {
 
 const loginRunners = new Map(Object.keys(PLATFORM).map(id => [id, new LoginRunner(id)]));
 
-async function importDshOAuthCredential(platform) {
-  if (!fs.existsSync(DSH_OAUTH_FILE)) return false;
-  await oauthModels.logout(platform.providerId).catch(() => {});
-  let credential;
-  try {
-    credential = readOAuthCredentialFile(DSH_OAUTH_FILE, platform.providerId);
-  } catch (error) {
-    if (!String(error?.message || '').includes('没有找到可用')) throw error;
-    credential = readOAuthCredentialFile(DSH_OAUTH_FILE, `${platform.id}-oauth`);
+function readDshCredential(platform) {
+  if (!fs.existsSync(DSH_OAUTH_FILE)) return null;
+  for (const providerId of [platform.providerId, `${platform.id}-oauth`]) {
+    try {
+      return readOAuthCredentialFile(DSH_OAUTH_FILE, providerId);
+    } catch (error) {
+      if (!String(error?.message || '').includes('没有找到可用')) throw error;
+    }
   }
+  return null;
+}
+
+function dshCredentialAvailable(platform) {
+  try { return Boolean(readDshCredential(platform)); } catch { return false; }
+}
+
+async function importDshOAuthCredential(platform) {
+  const credential = readDshCredential(platform);
+  if (!credential) return false;
+  await oauthModels.logout(platform.providerId).catch(() => {});
   await oauthCredentials.modify(platform.providerId, async () => credential);
   return true;
 }
@@ -232,6 +242,7 @@ export async function oauthStatus({ autoImport = true } = {}) {
         name: platform.name,
         description: platform.description,
         direct_login: platform.directLogin,
+        local_login_available: dshCredentialAvailable(platform),
         signed_in: credentials.get(platform.providerId)?.type === 'oauth',
         provider_id: provider?.id || null,
         default_model: provider?.default_model || platform.defaultModel,
@@ -270,7 +281,7 @@ export async function logoutOAuth(platformId) {
 export async function importOAuthFromDsh(platformId) {
   const platform = platformOf(platformId);
   if (!fs.existsSync(DSH_OAUTH_FILE)) throw new Error('没有找到 DSH Everything OAuth 登录文件');
-  await importDshOAuthCredential(platform);
+  if (!await importDshOAuthCredential(platform)) throw new Error(`没有找到可用的 ${platform.name} 本机登录态`);
   setAutoImportDisabled(platform.id, false);
   const providerId = syncProvider(platform.id);
   return { ok: true, provider_id: providerId, ...(await oauthStatus()) };
