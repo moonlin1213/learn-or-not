@@ -313,6 +313,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--r
 .quiz-feedback { margin-top: 12px; font-size: .88rem; color: var(--ink-soft); border-top: 1px dashed var(--line-strong); padding-top: 12px; white-space: pre-wrap; }
 .quiz-result-banner { padding: 20px 26px; margin-bottom: 20px; text-align: center; font-family: var(--serif); font-size: 1.1rem; letter-spacing: 1px; }
 .quiz-result-banner b { color: var(--rose-deep); }
+/* 交卷后的「下一课」直达与复习排期提示 */
+.quiz-next-row { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: -6px 0 22px; }
+.quiz-next-done { font-family: var(--serif); letter-spacing: 1px; }
+.quiz-review-note { color: var(--ink-soft); font-size: .82rem; }
 
 /* 术语卡 */
 .term-card-stage { perspective: 1400px; max-width: 580px; margin: 34px auto 0; }

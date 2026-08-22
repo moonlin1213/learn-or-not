@@ -206,6 +206,10 @@ async function pollJob(jobId, logEl, onDone) {
 
 // ---------- 路由 ----------
 const state = { books: [], currentBook: null, currentLesson: null, lessonTab: 'preguide', reviewsTab: 'plan' };
+// 测验草稿持久化：刷新/重启后作答不丢（交卷后清除）
+const QUIZ_DRAFTS_KEY = 'learnloop.quizDrafts';
+const persistQuizDrafts = () => { try { localStorage.setItem(QUIZ_DRAFTS_KEY, JSON.stringify(state.quizDrafts || {})); } catch { /* 存储写满等异常只放弃持久化，不影响当次作答 */ } };
+try { state.quizDrafts = JSON.parse(localStorage.getItem(QUIZ_DRAFTS_KEY)) || {}; } catch { state.quizDrafts = {}; }
 
 // 视图位置记忆：离开某路由时记下滚动位置，回来时原地恢复（顶栏往返不丢阅读位置）
 const viewMemory = new Map(); // hash -> scrollY
@@ -784,7 +788,13 @@ function wireQuizForm(body, quiz, draftKey, prefix = 'q') {
         if (ta) ta.value = v;
       }
     });
-    const save = () => { state.quizDrafts[draftKey] = collect(); };
+    // 简答题逐键输入时不必每次都序列化整个草稿，轻防抖
+    let saveTimer = null;
+    const save = () => {
+      state.quizDrafts[draftKey] = collect();
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(persistQuizDrafts, 400);
+    };
     body.addEventListener('change', save);
     body.addEventListener('input', save);
   }
@@ -832,7 +842,8 @@ function renderQuiz(body, lesson, quiz) {
     try {
       const { total, results } = await api(`/api/lessons/${lesson.id}/grade`, { method: 'POST', body: { answers } });
       delete state.quizDrafts?.[`lesson-${lesson.id}`];
-      paintQuizResult(body, quiz, results, total);
+      persistQuizDrafts();
+      paintQuizResult(body, quiz, results, total, lesson);
     } catch (e) {
       toast(e.message, true);
       btn.disabled = false;
@@ -841,13 +852,32 @@ function renderQuiz(body, lesson, quiz) {
   };
 }
 
-function paintQuizResult(body, quiz, results, total) {
+function paintQuizResult(body, quiz, results, total, lesson) {
   const res = $('#quiz-result');
   res.classList.remove('hidden');
   const wrong = results.filter(r => !r.correct && !r.ungraded).length;
   const ungraded = results.filter(r => r.ungraded).length;
+  // 下一课直达：交卷后学习闭环不再死胡同（只在测验属于当前课节时展示；复习会话有自己的完成引导）
+  let nextHtml = '';
+  if (lesson && state.currentLesson?.id === lesson.id && state.currentBook?.id === lesson.book_id) {
+    const flat = [];
+    for (const m of state.currentBook.outline || []) for (const l of m.lessons) flat.push(l);
+    const i = flat.findIndex(l => l.id === lesson.id);
+    const next = i >= 0 ? flat[i + 1] : null;
+    nextHtml = `<div class="quiz-next-row">${next
+      ? `<button class="primary small" id="quiz-next">下一课 · ${esc(next.title)} →</button>`
+      : `<span class="quiz-next-done">这本书的全部课节都学完了 🎉</span>`}
+      <span class="quiz-review-note">复习已按艾宾浩斯曲线自动排期（1/2/4/7/15/30 天）</span></div>`;
+  }
   res.innerHTML = `<div class="card quiz-result-banner" style="border-color:${wrong ? 'var(--rose)' : 'var(--sage)'}">
-    得分 <b style="font-size:1.5em">${total}</b> 分${wrong ? ` · ${wrong} 道题进了错题本` : ' · 全对，漂亮！'}${ungraded ? ` · ${ungraded} 题未批改（未计分）` : ''}</div>`;
+    得分 <b style="font-size:1.5em">${total}</b> 分${wrong ? ` · ${wrong} 道题进了错题本` : ' · 全对，漂亮！'}${ungraded ? ` · ${ungraded} 题未批改（未计分）` : ''}</div>${nextHtml}`;
+  {
+    const flat = [];
+    for (const m of state.currentBook?.outline || []) for (const l of m.lessons) flat.push(l);
+    const i = lesson ? flat.findIndex(l => l.id === lesson.id) : -1;
+    const next = i >= 0 ? flat[i + 1] : null;
+    if (next) $('#quiz-next').onclick = () => { location.hash = `#/lesson/${next.id}`; };
+  }
   for (const r of results) {
     const qEl = $(`.quiz-q[data-i="${r.index}"]`, body);
     if (!qEl) continue;
