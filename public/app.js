@@ -887,7 +887,7 @@ function paintQuizResult(body, quiz, results, total, lesson) {
     const next = i >= 0 ? flat[i + 1] : null;
     nextHtml = `<div class="quiz-next-row">${next
       ? `<button class="primary small" id="quiz-next">下一课 · ${esc(next.title)} →</button>`
-      : `<span class="quiz-next-done">这本书的全部课节都学完了 🎉</span>`}
+      : `<span class="quiz-next-done">这本书的全部课节都学完了 ✧</span>`}
       <span class="quiz-review-note">复习已按艾宾浩斯曲线自动排期（1/2/4/7/15/30 天）</span></div>`;
   }
   res.innerHTML = `<div class="card quiz-result-banner" style="border-color:${wrong ? 'var(--rose)' : 'var(--sage)'}">
