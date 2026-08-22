@@ -506,6 +506,8 @@ export const store = {
 const BACKUP_TABLES = ['providers', 'books', 'modules', 'lessons', 'qa', 'wrong_questions',
   'reviews', 'chat_sessions', 'chat_messages', 'settings', 'study_time', 'highlights',
   'weekly_reports', 'focus_sessions'];
+const LOCAL_SETTING_PREFIXES = ['oauth_auto_import_disabled_'];
+const isLocalOnlySetting = key => LOCAL_SETTING_PREFIXES.some(prefix => String(key || '').startsWith(prefix));
 
 export function dumpAll() {
   const tables = {};
@@ -513,7 +515,9 @@ export function dumpAll() {
     // OAuth provider 只是本机令牌的外壳；不带令牌备份它会造成“已授权”假象。
     tables[t] = t === 'providers'
       ? db.prepare(`SELECT * FROM providers WHERE source!='oauth'`).all()
-      : db.prepare(`SELECT * FROM ${t}`).all();
+      : t === 'settings'
+        ? db.prepare('SELECT * FROM settings').all().filter(row => !isLocalOnlySetting(row.key))
+        : db.prepare(`SELECT * FROM ${t}`).all();
   }
   return { app: 'learnloop', version: 2, exported_at: new Date().toISOString(), tables };
 }
@@ -528,8 +532,12 @@ export function restoreAll(payload) {
       const rows = tables[t];
       if (!Array.isArray(rows)) continue;
       const cols = db.prepare(`PRAGMA table_info(${t})`).all().map(c => c.name);
-      db.prepare(`DELETE FROM ${t}`).run();
+      if (t === 'settings') {
+        const deletable = LOCAL_SETTING_PREFIXES.map(() => 'key NOT LIKE ?').join(' AND ');
+        db.prepare(`DELETE FROM settings WHERE ${deletable}`).run(...LOCAL_SETTING_PREFIXES.map(prefix => `${prefix}%`));
+      } else db.prepare(`DELETE FROM ${t}`).run();
       for (const row of rows) {
+        if (t === 'settings' && isLocalOnlySetting(row.key)) continue;
         if (t === 'providers' && row.api_key == null) row.api_key = ''; // 默认备份不含 key，恢复时补空串满足 NOT NULL
         const keys = Object.keys(row).filter(k => cols.includes(k));
         if (!keys.length) continue;

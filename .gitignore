@@ -6,6 +6,7 @@ data/
 *.log
 oauth-credentials.json*
 .tmp-*/
+.codegraph/
 
 # 本机覆盖配置（代理/数据目录，勿入库）
 local.config.json

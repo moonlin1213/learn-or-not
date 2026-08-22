@@ -28,6 +28,15 @@ test('toast entrance animation preserves horizontal centering', () => {
   assert.match(errorRule, /overflow-wrap:\s*anywhere/);
 });
 
+test('subscription settings offer only platform-specific local credential import', () => {
+  assert.match(appJs, /platform\.direct_login \? `<button[^`]*data-oauth-act="login"/);
+  assert.match(appJs, /platform\.local_login_available/);
+  assert.match(appJs, /data-oauth-act="import">导入本机登录态<\/button>/);
+  assert.match(appJs, /订阅账户仅导入本机登录态，不会打开官网授权/);
+  assert.match(appJs, /Codex 与 Grok 都只读取本机已有的 DSH 登录态/);
+  assert.doesNotMatch(appJs, /用官方 OAuth 连接现有订阅/);
+});
+
 test('lesson TTS exposes a styled progress control with real audio seeking', () => {
   assert.match(appJs, /id="tts-progress"[^>]*type="range"/);
   assert.match(appJs, /id="tts-percent"/);

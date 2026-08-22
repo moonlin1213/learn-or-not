@@ -11,18 +11,28 @@ import { OAuthCredentialStore, readOAuthCredentialFile } from './oauth-store.js'
 
 const DATA_DIR = process.env.LEARNLOOP_DATA_DIR || path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'data');
 const OAUTH_FILE = path.join(DATA_DIR, 'oauth-credentials.json');
-const DSH_OAUTH_FILE = path.join(os.homedir(), '.dsh', '.everything-oauth.json');
+const DSH_OAUTH_FILE = process.env.LEARNLOOP_DSH_OAUTH_FILE
+  || path.join(os.homedir(), '.dsh', '.everything-oauth.json');
+const AUTO_IMPORT_DISABLED_PREFIX = 'oauth_auto_import_disabled_';
+
+function autoImportDisabled(platformId) {
+  return store.getSetting(`${AUTO_IMPORT_DISABLED_PREFIX}${platformId}`) === '1';
+}
+
+function setAutoImportDisabled(platformId, disabled) {
+  store.setSetting(`${AUTO_IMPORT_DISABLED_PREFIX}${platformId}`, disabled ? '1' : '0');
+}
 
 const PLATFORM = Object.freeze({
   codex: {
     id: 'codex', name: 'Codex', providerId: 'openai-codex', protocol: 'openai-codex-responses',
-    baseURL: 'https://chatgpt.com/backend-api', defaultModel: 'gpt-5.4',
-    description: '使用 ChatGPT Plus / Pro 订阅',
+    baseURL: 'https://chatgpt.com/backend-api', defaultModel: 'gpt-5.4', directLogin: false,
+    description: '导入本机 ChatGPT Plus / Pro 登录态',
   },
   grok: {
     id: 'grok', name: 'Grok', providerId: 'xai', protocol: 'openai-responses',
-    baseURL: 'https://api.x.ai/v1', defaultModel: 'grok-4.5',
-    description: '使用 SuperGrok / X Premium 订阅',
+    baseURL: 'https://api.x.ai/v1', defaultModel: 'grok-4.5', directLogin: false,
+    description: '导入本机 SuperGrok / X Premium 登录态',
   },
 });
 
@@ -108,6 +118,7 @@ class LoginRunner {
       },
       notify: event => this.onEvent(event),
     }).then(() => {
+      setAutoImportDisabled(this.platformId, false);
       syncProvider(this.platformId);
       this.challenge = null;
     }).catch(error => {
@@ -171,16 +182,26 @@ class LoginRunner {
 
 const loginRunners = new Map(Object.keys(PLATFORM).map(id => [id, new LoginRunner(id)]));
 
-async function importDshOAuthCredential(platform) {
-  if (!fs.existsSync(DSH_OAUTH_FILE)) return false;
-  await oauthModels.logout(platform.providerId).catch(() => {});
-  let credential;
-  try {
-    credential = readOAuthCredentialFile(DSH_OAUTH_FILE, platform.providerId);
-  } catch (error) {
-    if (!String(error?.message || '').includes('没有找到可用')) throw error;
-    credential = readOAuthCredentialFile(DSH_OAUTH_FILE, `${platform.id}-oauth`);
+function readDshCredential(platform) {
+  if (!fs.existsSync(DSH_OAUTH_FILE)) return null;
+  for (const providerId of [platform.providerId, `${platform.id}-oauth`]) {
+    try {
+      return readOAuthCredentialFile(DSH_OAUTH_FILE, providerId);
+    } catch (error) {
+      if (!String(error?.message || '').includes('没有找到可用')) throw error;
+    }
   }
+  return null;
+}
+
+function dshCredentialAvailable(platform) {
+  try { return Boolean(readDshCredential(platform)); } catch { return false; }
+}
+
+async function importDshOAuthCredential(platform) {
+  const credential = readDshCredential(platform);
+  if (!credential) return false;
+  await oauthModels.logout(platform.providerId).catch(() => {});
   await oauthCredentials.modify(platform.providerId, async () => credential);
   return true;
 }
@@ -188,7 +209,7 @@ async function importDshOAuthCredential(platform) {
 export async function autoImportDshOAuth() {
   const imported = [];
   for (const platform of Object.values(PLATFORM)) {
-    if (loginRunners.get(platform.id).publicState().running) continue;
+    if (loginRunners.get(platform.id).publicState().running || autoImportDisabled(platform.id)) continue;
     try {
       if (await oauthCredentials.read(platform.providerId)) continue;
       if (await importDshOAuthCredential(platform)) imported.push(platform.id);
@@ -220,6 +241,8 @@ export async function oauthStatus({ autoImport = true } = {}) {
         id: platform.id,
         name: platform.name,
         description: platform.description,
+        direct_login: platform.directLogin,
+        local_login_available: dshCredentialAvailable(platform),
         signed_in: credentials.get(platform.providerId)?.type === 'oauth',
         provider_id: provider?.id || null,
         default_model: provider?.default_model || platform.defaultModel,
@@ -231,7 +254,12 @@ export async function oauthStatus({ autoImport = true } = {}) {
 }
 
 export async function startOAuthLogin(platformId, mode) {
-  platformOf(platformId);
+  const platform = platformOf(platformId);
+  if (!platform.directLogin) {
+    const error = new Error(`${platform.name} 仅支持导入本机登录态，不会打开官网授权页面`);
+    error.code = 400;
+    throw error;
+  }
   return loginRunners.get(platformId).start(mode);
 }
 
@@ -245,6 +273,7 @@ export async function logoutOAuth(platformId) {
   const platform = platformOf(platformId);
   await loginRunners.get(platformId).cancel();
   await oauthModels.logout(platform.providerId);
+  setAutoImportDisabled(platform.id, true);
   store.deleteProviderBySource('oauth', platform.id);
   return oauthStatus({ autoImport: false });
 }
@@ -252,7 +281,8 @@ export async function logoutOAuth(platformId) {
 export async function importOAuthFromDsh(platformId) {
   const platform = platformOf(platformId);
   if (!fs.existsSync(DSH_OAUTH_FILE)) throw new Error('没有找到 DSH Everything OAuth 登录文件');
-  await importDshOAuthCredential(platform);
+  if (!await importDshOAuthCredential(platform)) throw new Error(`没有找到可用的 ${platform.name} 本机登录态`);
+  setAutoImportDisabled(platform.id, false);
   const providerId = syncProvider(platform.id);
   return { ok: true, provider_id: providerId, ...(await oauthStatus()) };
 }
