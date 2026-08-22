@@ -114,13 +114,16 @@ function esc(s) {
 }
 
 // ---------- 迷你 Markdown ----------
+// 代码块占位 token：\u0000 定界符不可能出现在正常文本里，避免与正文里的数字混淆误还原
+const codeToken = i => `\u0000LONCODE${i}\u0000`;
+const CODE_TOKEN_RE = /\u0000LONCODE(\d+)\u0000/g;
 function md(src) {
   if (!src) return '';
   const blocks = [];
   // 代码块先抽走
   src = String(src).replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     blocks.push(`<pre><code>${esc(code.replace(/\n$/, ''))}</code></pre>`);
-    return `${blocks.length - 1}`;
+    return codeToken(blocks.length - 1);
   });
   // AI 输出里残留的转义换行还原（后紧跟英文字母的视为 LaTeX 命令，跳过）
   src = src.replace(/\\n\\n/g, '\n\n').replace(/\\n(?![a-zA-Z])/g, '\n');
@@ -162,13 +165,11 @@ function md(src) {
     const t = p.trim();
     if (!t) return '';
     if (/^<(h\d|ul|ol|blockquote|pre|table)/.test(t)) return t;
+    if (/^\u0000LONCODE\d+\u0000$/.test(t)) return t; // token 独占段落时不包 <p>，稍后原样还原成顶层代码块
     return `<p>${t.replace(/\n/g, '<br>')}</p>`;
   }).join('\n');
-  // 放回代码块（只还原真实占位 token，普通数字原样保留）
-  html = html.replace(/ (\d+) /g, (m, i) => {
-    const b = blocks[Number(i)];
-    return b !== undefined ? b : m;
-  });
+  // 放回代码块（只匹配真实占位 token，正文数字原样保留）
+  html = html.replace(CODE_TOKEN_RE, (m, i) => blocks[Number(i)] ?? m);
   return html;
 }
 
