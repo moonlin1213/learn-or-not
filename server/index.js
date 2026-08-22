@@ -587,6 +587,13 @@ route('POST', '/api/companion/discover', async (req, _p, body) => {
   const url = String(body.url || '').replace(/\/+$/, '');
   const statusPath = String(body.status_path || '/status');
   if (!url) throw new Error('先填地址');
+  let parsed;
+  try { parsed = new URL(url); } catch { throw new Error('地址格式不对'); }
+  // 只允许 http/https；本接口目标就是发现本机/局域网的 agent 实例，私网地址是设计用途，
+  // 入口已有 localApiRequest 全局校验挡住外部页面。
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('只支持 http/https 地址');
+  // statusPath 必须是站内绝对路径：拼 URL 时防「@host」「//host」之类的字符串注入跳到别的服务器
+  if (!statusPath.startsWith('/') || statusPath.startsWith('//')) throw new Error('状态路径必须是以 / 开头的站内路径');
   const res = await fetch(`${url}${statusPath}`, { signal: AbortSignal.timeout(5000) });
   if (!res.ok) throw new Error(`对方返回 ${res.status}`);
   const data = await res.json();
