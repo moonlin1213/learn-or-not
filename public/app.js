@@ -210,6 +210,7 @@ const state = { books: [], currentBook: null, currentLesson: null, lessonTab: 'p
 // 视图位置记忆：离开某路由时记下滚动位置，回来时原地恢复（顶栏往返不丢阅读位置）
 const viewMemory = new Map(); // hash -> scrollY
 let currentHash = null;
+let renderSeq = 0; // 每次 render 自增；异步竞态时旧渲染发现序号过期即放弃/重渲染
 
 // 顶栏「再点一次就返回」：点任何标签记住来路，该标签变成「‹ 返回」；
 // 标签页之间横跳时保留最初的来路（链式折叠），不会越陷越深
@@ -255,6 +256,7 @@ function routeInfo() {
 }
 
 async function render() {
+  const seq = ++renderSeq; // 渲染序号：异步视图函数 await 期间可能又有新导航，过期渲染不能覆盖新内容
   const { view, id } = routeInfo();
   const hash = location.hash || '#/shelf';
   if (currentHash && currentHash !== hash) {
@@ -290,8 +292,10 @@ async function render() {
     else if (view === 'settings') await renderSettings();
     else await renderShelf();
   } catch (e) {
-    app.innerHTML = `<div class="empty"><span class="emoji">${glyph('err')}</span>${esc(e.message)}</div>`;
+    if (seq === renderSeq) app.innerHTML = `<div class="empty"><span class="emoji">${glyph('err')}</span>${esc(e.message)}</div>`;
   }
+  // 本次渲染已被更新的导航取代（慢的旧请求后到、可能已把过期内容写进 DOM）→ 按当前路由重渲染一次
+  if (seq !== renderSeq) return render();
   const mem = viewMemory.get(hash);
   if (mem) requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, mem)));
   refreshReviewBadge();
@@ -2486,10 +2490,12 @@ async function paintGlobalChat() {
 
 async function loadChatHistory(ctx) {
   const box = $('#chat-messages');
+  const key = `${ctx.type}:${ctx.id}`;
   box.innerHTML = '<div class="chat-loading">…</div>';
   const data = ctx.type === 'lesson'
     ? await api(`/api/lessons/${ctx.id}/chat`)
     : await api('/api/chat');
+  if (chatState.ctxKey !== key) return; // 过期响应：期间已切到别的书/课，丢弃，避免串会话
   chatState.sessionId = data.session?.id || null;
   if (chatState.sessionId) localStorage.setItem('learnloop.activeChatSession', String(chatState.sessionId));
   const history = data.messages || [];
