@@ -454,12 +454,16 @@ async function renderShelf() {
 async function upload(file) {
   const fd = new FormData();
   fd.append('file', file);
-  toast(`正在解析《${file.name}》…`);
+  toast(`已上传《${file.name}》，后台解析中…`);
   try {
-    const book = await api('/api/upload', { method: 'POST', body: fd });
-    toast(`《${book.title}》解析完成`);
-    await renderShelf();
-  } catch (e) { toast(e.message, true); }
+    const { jobId } = await api('/api/upload', { method: 'POST', body: fd });
+    // 解析在 worker 线程后台跑，任务弹窗展示进度；期间其他页面照常可用
+    showJobModal(`解析《${file.name}》`, jobId, async (err) => {
+      if (err) toast(err.message, true);
+      else toast(`《${file.name}》解析完成`);
+      await renderShelf();
+    });
+  } catch (e) { toast(e.message, true); await renderShelf(); }
 }
 
 // 课程页统计卡
@@ -1038,6 +1042,7 @@ async function saveHlFromCard() {
   hideHlNoteCard();
   try {
     await api('/api/highlights', { method: 'POST', body: { ...pending, note } });
+    lessonMarksCache.delete(pending.lesson_id); // 新划线：本课缓存失效
     toast('已划线，收进划线页了');
     if (state.currentLesson) paintLessonMarks(state.currentLesson);
   } catch (e) { toast(e.message, true); }
@@ -1083,10 +1088,17 @@ function wrapQuote(root, h) {
   }
 }
 
+// 划线留痕按课缓存：切页签不必每次重拉全书划线再全文 TreeWalker（加/删划线时失效）
+const lessonMarksCache = new Map(); // lessonId -> marks[]
 async function paintLessonMarks(lesson) {
   try {
-    const all = await api(`/api/highlights?book_id=${lesson.book_id}`);
-    const marks = all.filter(h => h.lesson_id === lesson.id);
+    let marks = lessonMarksCache.get(lesson.id);
+    if (!marks) {
+      const all = await api(`/api/highlights?book_id=${lesson.book_id}`);
+      marks = all.filter(h => h.lesson_id === lesson.id);
+      lessonMarksCache.set(lesson.id, marks);
+      if (lessonMarksCache.size > 30) lessonMarksCache.delete(lessonMarksCache.keys().next().value);
+    }
     state.lessonMarks = Object.fromEntries(marks.map(h => [String(h.id), h]));
     for (const h of marks) for (const root of $$('.js-askable')) wrapQuote(root, h);
   } catch { /* 划线留痕失败不影响阅读 */ }
@@ -1452,6 +1464,7 @@ async function renderHighlights() {
     });
     $('#hl-del')?.addEventListener('click', async () => {
       await api(`/api/highlights/${h.id}`, { method: 'DELETE' });
+      lessonMarksCache.delete(h.lesson_id); // 删划线：对应课缓存失效
       items.splice(cur, 1);
       if (!items.length) return renderHighlights();
       cur = Math.min(cur, items.length - 1);

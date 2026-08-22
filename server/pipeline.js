@@ -8,8 +8,19 @@ const MAX_OUTLINE_CHARS = 48000;   // 大纲单次送入上限
 const MAP_CHUNK_CHARS = 20000;     // 超长文本 map 阶段块大小
 const LESSON_SOURCE_CHARS = 14000; // 课节原文上限
 
+// 教材正文 LRU 缓存：书解析后不可变，聊天/备课/划词每次重读几 MB 文件纯属浪费
+const textCache = new Map(); // bookId -> string
 function getText(bookId) {
-  return fs.readFileSync(path.join(TEXTS_DIR, `${bookId}.txt`), 'utf8');
+  if (textCache.has(bookId)) {
+    const t = textCache.get(bookId);
+    textCache.delete(bookId); // 重插到末尾，维持 LRU 顺序
+    textCache.set(bookId, t);
+    return t;
+  }
+  const t = fs.readFileSync(path.join(TEXTS_DIR, `${bookId}.txt`), 'utf8');
+  textCache.set(bookId, t);
+  if (textCache.size > 6) textCache.delete(textCache.keys().next().value); // 超出逐出最久未用
+  return t;
 }
 
 function activeProvider() {
