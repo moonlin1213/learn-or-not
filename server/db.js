@@ -225,6 +225,16 @@ try {
   }
 } catch (e) { console.error('[db] highlight/book 迁移跳过:', e.message); }
 
+// 二级索引：高频过滤查询走索引而非全表扫（聊天消息数千条后会明显）
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
+  CREATE INDEX IF NOT EXISTS idx_reviews_due ON reviews(done, due_date);
+  CREATE INDEX IF NOT EXISTS idx_lessons_book ON lessons(book_id, module_id);
+  CREATE INDEX IF NOT EXISTS idx_wrong_book ON wrong_questions(book_id, mastered);
+  CREATE INDEX IF NOT EXISTS idx_highlights_book ON highlights(book_id);
+  CREATE INDEX IF NOT EXISTS idx_qa_book ON qa(book_id);
+`);
+
 const stmts = {};
 function prep(key, sql) { return stmts[key] || (stmts[key] = db.prepare(sql)); }
 
