@@ -187,7 +187,11 @@ route('POST', '/api/tts', async (req, _p, body, _q, res) => {
 });
 
 // 任务
-route('GET', '/api/jobs/:id', async (req, { id }) => jobs.get(id) || Object.assign(new Error('任务不存在'), { code: 404 }));
+route('GET', '/api/jobs/:id', async (req, { id }) => {
+  const job = jobs.get(id); // jobs 只在内存里，服务重启即丢——查不到要明确 404，前端才能停止轮询报错
+  if (!job) throw Object.assign(new Error('任务不存在（可能已随服务重启丢失，请重试）'), { code: 404 });
+  return job;
+});
 
 // 术语 / 错题 / 问答
 route('GET', '/api/books/:id/terms', async (req, { id }) => {
