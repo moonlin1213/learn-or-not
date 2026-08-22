@@ -1392,6 +1392,7 @@ body[data-view="lesson"] #lesson-main .lesson-body { flex: 1; }
   border: 1px solid transparent;
 }
 .search-item:hover { background: var(--surface-2); border-color: var(--line); }
+.search-item.active { background: var(--surface-2); border-color: var(--rose-soft); } /* ↑↓ 键盘导航选中态 */
 .si-title { font-weight: 600; font-size: .92rem; }
 .si-snippet {
   font-size: .82rem; color: var(--ink-soft); line-height: 1.6;

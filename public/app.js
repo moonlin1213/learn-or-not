@@ -268,7 +268,7 @@ $$('#topbar nav a').forEach(a => {
 });
 
 function routeInfo() {
-  const h = location.hash.replace(/^#\/?/, '');
+  const h = location.hash.replace(/^#\/?/, '').split('?')[0]; // 路由不识别 query（?book=/?tab= 等给页面自己解析）
   const parts = h.split('/');
   return { view: parts[0] || 'shelf', id: parts[1] ? Number(parts[1]) : null };
 }
@@ -672,6 +672,10 @@ async function renderLesson(id) {
   const prevOutlineScroll = $('#outline')?.scrollTop ?? null;
   const lesson = await api(`/api/lessons/${id}`);
   state.currentLesson = lesson;
+  // 深链指定页签（如搜索结果跳术语卡）：#/lesson/5?tab=terms
+  const lparams = new URLSearchParams(location.hash.split('?')[1] || '');
+  const ltab = lparams.get('tab');
+  if (['preguide', 'content', 'terms', 'quiz'].includes(ltab)) state.lessonTab = ltab;
   const book = await api(`/api/books/${lesson.book_id}`);
   state.currentBook = book;
 
@@ -1318,6 +1322,9 @@ async function renderHighlights() {
     return;
   }
   let cur = 0;
+  // 搜索深链：?item=<id> 直达并选中该条划线
+  const hlFocus = Number(params.get('item')) || null;
+  if (hlFocus) { const i = items.findIndex(x => x.id === hlFocus); if (i >= 0) cur = i; }
   let showSource = false;
   let lessonCache = {};
 
@@ -1466,6 +1473,9 @@ async function renderWrong() {
     return;
   }
   let cur = 0;
+  // 搜索深链：?item=<id> 直达并选中该题
+  const wrongFocus = Number(params.get('item')) || null;
+  if (wrongFocus) { const i = wrongs.findIndex(w => w.id === wrongFocus); if (i >= 0) cur = i; }
 
   function paint() {
     stage.innerHTML = `
@@ -2850,12 +2860,13 @@ async function renderStats() {
 // ---------- 全文搜索 ----------
 const SEARCH_KINDS = {
   lesson: { label: '课节', go: r => `#/lesson/${r.lesson_id}` },
-  term: { label: '术语', go: r => `#/lesson/${r.lesson_id}` },
-  highlight: { label: '划线', go: () => '#/highlights' },
-  wrong: { label: '错题', go: () => '#/wrong' },
+  term: { label: '术语', go: r => `#/lesson/${r.lesson_id}?tab=terms` },
+  highlight: { label: '划线', go: r => `#/highlights${r.book_id ? `?book=${r.book_id}` : ''}${r.id ? `${r.book_id ? '&' : '?'}item=${r.id}` : ''}` },
+  wrong: { label: '错题', go: r => `#/wrong${r.book_id ? `?book=${r.book_id}` : ''}${r.id ? `${r.book_id ? '&' : '?'}item=${r.id}` : ''}` },
   qa: { label: '问答', go: r => r.lesson_id ? `#/lesson/${r.lesson_id}` : '#/shelf' },
 };
 let searchTimer = null;
+let searchActive = -1; // ↑↓ 键盘导航的活动结果下标
 
 function openSearch() {
   const ov = $('#search-overlay');
@@ -2887,12 +2898,20 @@ async function doSearch(q) {
     <div class="search-group">
       <div class="search-kind">${SEARCH_KINDS[g.kind]?.label || g.kind}</div>
       ${g.items.map(r => `
-        <div class="search-item" data-kind="${r.kind}" data-payload='${esc(JSON.stringify({ lesson_id: r.lesson_id }))}'>
+        <div class="search-item" data-kind="${r.kind}" data-payload='${esc(JSON.stringify({ lesson_id: r.lesson_id, book_id: r.book_id, id: r.id }))}'>
           <div class="si-title">${esc(r.title)}</div>
           <div class="si-snippet">${esc(r.snippet)}</div>
           <div class="si-src">${esc(r.book_title || '')}</div>
         </div>`).join('')}
     </div>`).join('');
+  searchActive = -1;
+  const paintActive = () => {
+    const els = $$('#search-results .search-item');
+    els.forEach((el, i) => el.classList.toggle('active', i === searchActive));
+    els[searchActive]?.scrollIntoView({ block: 'nearest' });
+  };
+  $('#search-input').dataset.nav = '1'; // 标记当前结果集支持键盘导航
+  box.dataset.nav = '1';
   box.onclick = e => {
     const item = e.target.closest('.search-item');
     if (!item) return;
@@ -2903,6 +2922,7 @@ async function doSearch(q) {
     closeSearch();
     location.hash = meta.go(payload);
   };
+  box.paintActive = paintActive; // keydown 处理器里调用
 }
 
 window.addEventListener('load', () => {
@@ -2916,7 +2936,19 @@ window.addEventListener('load', () => {
   });
   $('#search-input')?.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeSearch();
-    if (e.key === 'Enter') $('#search-results .search-item')?.click();
+    const items = $$('#search-results .search-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      searchActive = e.key === 'ArrowDown'
+        ? Math.min(searchActive + 1, items.length - 1)
+        : Math.max(searchActive - 1, 0);
+      $('#search-results').paintActive?.();
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      (items[Math.max(searchActive, 0)]).click();
+    }
   });
   document.addEventListener('keydown', e => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {

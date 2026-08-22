@@ -280,12 +280,12 @@ route('GET', '/api/search', async (req, _p, _b, query) => {
   for (const r of store.raw(`SELECT h.id, h.lesson_id, h.book_id, h.text, h.passage, l.title AS lesson_title, b.title AS book_title
       FROM highlights h LEFT JOIN lessons l ON l.id=h.lesson_id LEFT JOIN books b ON b.id=h.book_id
       WHERE h.text LIKE ? OR h.passage LIKE ? ORDER BY h.id DESC LIMIT 10`, like, like)) {
-    results.push({ kind: 'highlight', lesson_id: r.lesson_id, book_id: r.book_id, title: r.lesson_title || '划线', book_title: r.book_title, snippet: snippet(r.text) });
+    results.push({ kind: 'highlight', id: r.id, lesson_id: r.lesson_id, book_id: r.book_id, title: r.lesson_title || '划线', book_title: r.book_title, snippet: snippet(r.text) });
   }
   for (const r of store.raw(`SELECT w.id, w.lesson_id, w.book_id, w.question, w.explanation, l.title AS lesson_title, b.title AS book_title
       FROM wrong_questions w LEFT JOIN lessons l ON l.id=w.lesson_id LEFT JOIN books b ON b.id=w.book_id
       WHERE w.question LIKE ? OR w.explanation LIKE ? ORDER BY w.id DESC LIMIT 10`, like, like)) {
-    results.push({ kind: 'wrong', lesson_id: r.lesson_id, book_id: r.book_id, title: r.lesson_title || '错题', book_title: r.book_title, snippet: snippet(r.question) });
+    results.push({ kind: 'wrong', id: r.id, lesson_id: r.lesson_id, book_id: r.book_id, title: r.lesson_title || '错题', book_title: r.book_title, snippet: snippet(r.question) });
   }
   for (const r of store.raw(`SELECT q.id, q.lesson_id, q.book_id, q.question, q.answer, b.title AS book_title
       FROM qa q LEFT JOIN books b ON b.id=q.book_id
