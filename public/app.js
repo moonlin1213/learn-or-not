@@ -741,6 +741,7 @@ async function renderLesson(id) {
         <button data-tab="terms">术语 <span class="tab-count">${terms.length}</span></button>
         <button data-tab="quiz">课后测验 <span class="tab-count">${quiz.length}</span></button>
         <button class="chat-toggle tts-toggle" id="tts-toggle" title="把这一页读给你听（Edge TTS）">▸ 朗读</button>
+        <button class="chat-toggle" id="tts-cont" title="从当前页签开始，读完自动翻页签连读全课">▸▸ 连读</button>
         <button class="chat-toggle" id="chat-toggle" title="和老师聊聊">✎ 问老师</button>
       </div>
       <div id="tts-bar" class="hidden">
@@ -758,9 +759,28 @@ async function renderLesson(id) {
     </div>
     <div class="card lesson-body" id="tab-body"></div>`;
 
-  $$('.tabs button[data-tab]', main).forEach(b => b.onclick = () => { state.lessonTab = b.dataset.tab; paintTab(); });
+  $$('.tabs button[data-tab]', main).forEach(b => b.onclick = () => {
+    if (state.lessonTab !== b.dataset.tab) TTS?.stop(); // 手动翻页签即停读（连读流程走 paintTab，不经此）
+    state.lessonTab = b.dataset.tab;
+    paintTab();
+  });
   $('#chat-toggle')?.addEventListener('click', () => toggleGlobalChat(true));
   TTS.bindLesson();
+
+  // 连读全课：读完当前页签自动翻下一个继续（课前引导 → 精读讲义 → 术语卡；测验不读）
+  const TTS_FLOW = ['preguide', 'content', 'terms'];
+  $('#tts-cont').onclick = () => {
+    if (TTS.isActive()) TTS.stop();
+    const readFrom = i => {
+      if (i >= TTS_FLOW.length) { toast('这一课连读完毕'); return; }
+      state.lessonTab = TTS_FLOW[i];
+      paintTab();
+      const root = $('#tab-body');
+      if (!root) { readFrom(i + 1); return; }
+      TTS.start(root, () => readFrom(i + 1)); // onEnded 只在自然播完时触发；中途停止/翻页不续
+    };
+    readFrom(Math.max(0, TTS_FLOW.indexOf(state.lessonTab)));
+  };
 
   function paintTab() {
     $$('.tabs button', main).forEach(b => b.classList.toggle('active', b.dataset.tab === state.lessonTab));

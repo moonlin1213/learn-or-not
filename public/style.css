@@ -581,6 +581,7 @@ details.card > summary,
 @keyframes tts-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.72); } }
 @keyframes tts-loading { 0%, 100% { opacity: .35; transform: scale(.72); } 50% { opacity: 1; transform: scale(1.18); } }
 ::highlight(tts-seek) { background-color: color-mix(in srgb, var(--tts-accent-soft) 52%, transparent); }
+::highlight(tts-read) { background-color: color-mix(in srgb, var(--tts-accent-soft) 70%, transparent); } /* 逐句跟读：当前朗读句 */
 .tts-locate-flash { animation: tts-locate-flash 1.45s var(--ease); border-radius: 4px; }
 @keyframes tts-locate-flash {
   0% { background-color: color-mix(in srgb, var(--tts-accent-soft) 38%, transparent); box-shadow: inset 3px 0 var(--tts-accent); }

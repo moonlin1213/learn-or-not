@@ -136,6 +136,79 @@ window.TTS = (() => {
     locatorTimer = setTimeout(clearLocator, 2400);
   }
 
+  // ---------- 逐句跟读高亮 ----------
+  // 朗读到哪一句，就把那句淡淡地铺一层底色并滚到视野中央（卡拉OK跟读）。
+  // 句级时间无法从整段音频里精确拿到，按「段内非空白字符占比」推算当前句——
+  // 语速近似均匀，误差半句以内；DOM 映射用 job 级缓存的归一化索引，每帧只做查表。
+  let karaokeKey = '';   // 'chunk:unit'，句没变不重绘
+  let domCursor = 0;     // 平坦文本单调游标：顺序朗读时消歧重复句子；seek 回跳则全局重找
+
+  function clearKaraoke() {
+    karaokeKey = '';
+    domCursor = 0;
+    try { window.CSS?.highlights?.delete('tts-read'); } catch {}
+  }
+
+  function normText(s) { return String(s || '').replace(/\s+/g, ''); }
+
+  function buildDomIndex(rootEl) {
+    if (!rootEl) return null;
+    const chars = [];
+    const positions = [];
+    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      if (node.parentElement?.closest('.katex, pre, table, button, script, style')) continue;
+      for (let i = 0; i < node.nodeValue.length; i++) {
+        if (/\s/.test(node.nodeValue[i])) continue;
+        chars.push(node.nodeValue[i]);
+        positions.push({ node, offset: i });
+      }
+    }
+    return positions.length ? { flat: chars.join(''), positions } : null;
+  }
+
+  function unitRange(j, unit) {
+    const idx = j.domIndex;
+    const src = normText(unit);
+    if (!idx || src.length < 2) return null;
+    let at = idx.flat.indexOf(src, Math.max(0, domCursor - 8));
+    if (at < 0) at = idx.flat.indexOf(src); // 游标在目标之后（seek 回跳）：从头找
+    if (at < 0) return null; // 公式/代码/表格的占位句等不在正文 DOM 里，跳过
+    domCursor = at + src.length;
+    const first = idx.positions[at];
+    const last = idx.positions[at + src.length - 1];
+    if (!first || !last) return null;
+    const range = document.createRange();
+    range.setStart(first.node, first.offset);
+    range.setEnd(last.node, last.offset + 1);
+    return range;
+  }
+
+  function updateKaraoke() {
+    const j = job;
+    if (!j || j.state !== 'playing' || !j.domIndex) return;
+    const { index, within } = locateFraction(j, currentFraction(j));
+    const lens = j.unitLens[index];
+    if (!lens || !lens.length) return;
+    let acc = 0, pick = lens.length - 1;
+    for (let u = 0; u < lens.length; u++) {
+      acc += lens[u];
+      if (within * j.unitTotals[index] <= acc) { pick = u; break; }
+    }
+    const key = `${index}:${pick}`;
+    if (key === karaokeKey) return;
+    const range = unitRange(j, j.chunks[index].split('\n')[pick]);
+    if (!range) return;
+    karaokeKey = key;
+    try {
+      if (window.CSS?.highlights && window.Highlight) {
+        window.CSS.highlights.set('tts-read', new window.Highlight(range));
+        range.startContainer.parentElement?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      }
+    } catch {}
+  }
+
   // ---------- 合成与播放 ----------
   async function fetchSynth(text) {
     const r = await fetch('/api/tts', {
@@ -235,7 +308,11 @@ window.TTS = (() => {
         j.sources.delete(src);
         if (j.cancelled || j !== job || generation !== j.generation) return;
         j.progress = fractionAt(j, i, 1);
-        if (i + 1 >= j.total) { stop(); } // 最后一段播完，自然收工
+        if (i + 1 >= j.total) { // 最后一段播完，自然收工（连读模式在此回调续读下一页签）
+          const ended = j.onEnded;
+          stop();
+          ended?.();
+        }
         else { j.audible = i + 2; updateUI(); }
       };
       updateUI();
@@ -243,7 +320,7 @@ window.TTS = (() => {
     }
   }
 
-  function speak(chunks, rootEl = null) {
+  function speak(chunks, rootEl = null, onEnded = null) {
     stop();
     if (!chunks.length) { toast('这一页没有可朗读的文字'); return; }
     ac = ac || new (window.AudioContext || window.webkitAudioContext)();
@@ -251,11 +328,15 @@ window.TTS = (() => {
     const weights = chunks.map(c => Math.max(1, c.replace(/\s+/g, '').length));
     const prefixWeights = [0];
     for (const w of weights) prefixWeights.push(prefixWeights[prefixWeights.length - 1] + w);
+    // 每段按 chunk 组装时的 '\n' 切回句子单元，记录各句归一化长度（供逐句高亮推算）
+    const unitLens = chunks.map(c => c.split('\n').filter(Boolean).map(u => Math.max(1, normText(u).length)));
+    const unitTotals = unitLens.map(a => a.reduce((x, y) => x + y, 0));
     job = {
       chunks, rootEl, weights, prefixWeights, totalWeight: prefixWeights.at(-1),
       buffers: [], durations: [], ready: [], sources: new Set(), timeline: [],
       cancelled: false, state: 'loading', audible: 0, total: chunks.length,
       generation: 1, progress: 0, seekWaiting: false,
+      unitLens, unitTotals, domIndex: buildDomIndex(rootEl), onEnded,
     };
     updateUI();
     startProgressLoop();
@@ -263,16 +344,17 @@ window.TTS = (() => {
     warmBuffers(job);
   }
 
-  function start(rootEl) {
+  function start(rootEl, onEnded = null) {
     const text = extractText(rootEl);
     if (text.length < 4) { toast('这一页没有可朗读的文字'); return; }
-    speak(chunkText(text), rootEl);
+    speak(chunkText(text), rootEl, onEnded);
   }
 
   function stop() {
     if (progressRaf) cancelAnimationFrame(progressRaf);
     progressRaf = null;
     clearLocator();
+    clearKaraoke();
     if (!job) return;
     job.cancelled = true;
     try { ac && ac.resume(); } catch {}
@@ -309,6 +391,7 @@ window.TTS = (() => {
     if (!job || progressDragging) return;
     job.progress = currentFraction(job);
     paintProgress(job.progress);
+    updateKaraoke();
   }
 
   function startProgressLoop() {
