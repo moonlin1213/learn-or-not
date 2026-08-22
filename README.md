@@ -32,7 +32,7 @@
 
 前端是**零构建**的原生三文件（`public/index.html` / `style.css` / `app.js`），改完刷新即生效：
 
-- **换皮**：改 `style.css` 顶部 CSS 变量（色板/字体/圆角）；或抄一个 `[data-theme="xxx"]` 主题块（内置古埃及/莫兰迪两套模板），主题下拉自动认识
+- **换皮**：改 `style.css` 顶部 CSS 变量（色板/字体/圆角）；或新增主题——`app.js` 的 `THEMES` 数组登记一项 + `style.css` 抄一个 `[data-theme="xxx"]` 变量块（内置古埃及/莫兰迪/夜间三套），主题下拉自动认识
 - **自定义 CSS snippets**：设置页直接贴 CSS，存数据库、启动注入，`git pull` 冲不掉
 - **阅读排版**：字号、字间距滑杆自由调
 - **接入你自己的 agent**：只需实现两个端点的 [Companion Contract](#接入你的陪伴-agentcompanion-contract)，30 行 shim 就够

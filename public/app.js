@@ -98,13 +98,16 @@ function applyTypography() {
   document.body.style.letterSpacing = ls ? ls + 'px' : '';
 }
 applyTypography();
-const THEME_GLYPHS = {
-  egypt:   { cat: '𓃠', scarab: '𓆣', ankh: '𓋹', eye: '𓂀', house: '𓉐', sun: '𓇳', ok: '𓋹', err: '𓂀', empty: '𓃠', plug: '𓉐', dot: '𓆣' },
-  morandi: { cat: '✧', scarab: '✧', ankh: '✓', eye: '✕', house: '◈', sun: '✧', ok: '✓', err: '✕', empty: '✧', plug: '◈', dot: '·' },
-};
+// 主题注册表：新增主题 = 这里登记一项 + style.css 加一个 [data-theme="xxx"] 变量块，下拉自动认识
+const THEMES = [
+  { id: 'egypt', name: '古埃及 · 纸莎草', glyphs: { cat: '𓃠', scarab: '𓆣', ankh: '𓋹', eye: '𓂀', house: '𓉐', sun: '𓇳', ok: '𓋹', err: '𓂀', empty: '𓃠', plug: '𓉐', dot: '𓆣' } },
+  { id: 'morandi', name: '莫兰迪书房', glyphs: { cat: '✧', scarab: '✧', ankh: '✓', eye: '✕', house: '◈', sun: '✧', ok: '✓', err: '✕', empty: '✧', plug: '◈', dot: '·' } },
+  { id: 'night', name: '夜间 · 墨蓝', glyphs: { cat: '☾', scarab: '✦', ankh: '✓', eye: '✧', house: '⌂', sun: '☾', ok: '✓', err: '✕', empty: '☾', plug: '⌂', dot: '·' } },
+];
+const THEME_GLYPHS = Object.fromEntries(THEMES.map(t => [t.id, t.glyphs]));
 function glyph(k) {
-  const t = document.documentElement.dataset.theme || 'egypt';
-  return (THEME_GLYPHS[t] || THEME_GLYPHS.egypt)[k] || '';
+  const t = document.documentElement.dataset.theme || THEMES[0].id;
+  return (THEME_GLYPHS[t] || THEME_GLYPHS[THEMES[0].id])[k] || '';
 }
 
 let toastTimer = null;
@@ -1685,11 +1688,10 @@ async function renderSettings() {
         <div class="settings-title-row">
           <b>外观</b>
           <select id="theme-select" class="settings-select-compact">
-            <option value="egypt">古埃及 · 纸莎草</option>
-            <option value="morandi">莫兰迪书房</option>
+            ${THEMES.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}
           </select>
         </div>
-        <div class="settings-help">古埃及纸莎草（有猫猫和圣甲虫）或莫兰迪书房。</div>
+        <div class="settings-help">古埃及纸莎草（有猫猫和圣甲虫）、莫兰迪书房，或夜间墨蓝。</div>
       </div>
       <details class="card settings-fold" id="typography-card">
         <summary>

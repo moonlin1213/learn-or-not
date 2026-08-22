@@ -864,6 +864,41 @@ body[data-view="lesson"] main { max-width: 1440px; }
 [data-theme="egypt"] .card { border-color: rgba(33, 27, 22, .16); }
 
 /* ============================================================
+   夜间 · 墨蓝主题
+   墨蓝底 + 月光蓝主色 + 柔和灰绿，月亮星星点缀
+   ============================================================ */
+[data-theme="night"] {
+  --bg: #14171C;          /* 墨蓝黑 */
+  --surface: #1B1F26;
+  --surface-2: #232830;
+  --ink: #E4E1D8;
+  --ink-soft: #A6A298;
+  --ink-faint: #79756D;
+  --line: rgba(228, 225, 216, .12);
+  --line-strong: rgba(228, 225, 216, .26);
+  --rose: #4E8DB0;        /* 月光蓝主色 */
+  --rose-deep: #6FA8C6;   /* 深色底上「更深」用更亮才读得清 */
+  --rose-soft: #5C6B7A;
+  --sage: #6B9E7F;
+  --sage-light: #3A4A42;
+  --sage-deep: #8FBF9F;
+  --slate: #7A8290;
+  --gray: #3A4048;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 28px rgba(0, 0, 0, .45);
+}
+[data-theme="night"] body {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(110, 141, 176, .06), transparent);
+}
+[data-theme="night"] ::selection { background: rgba(110, 141, 176, .38); }
+[data-theme="night"] .markdown pre, [data-theme="night"] .job-log { background: #10131A; color: #D6D3CB; border: 1px solid var(--line); }
+[data-theme="night"] button.primary { background: var(--rose); border-color: var(--rose); color: #14171C; }
+[data-theme="night"] button.primary:hover { background: var(--rose-deep); border-color: var(--rose-deep); }
+[data-theme="night"] .card { border-color: rgba(228, 225, 216, .14); }
+[data-theme="night"] #topbar { border-bottom: 1px solid var(--line-strong); }
+
+/* ============================================================
    学习页一体化三栏：去掉卡片盒，整面板上只留分割线（DSH/Codex 风）
    ============================================================ */
 :root { --topbar-h: 64px; }
