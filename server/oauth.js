@@ -26,13 +26,13 @@ function setAutoImportDisabled(platformId, disabled) {
 const PLATFORM = Object.freeze({
   codex: {
     id: 'codex', name: 'Codex', providerId: 'openai-codex', protocol: 'openai-codex-responses',
-    baseURL: 'https://chatgpt.com/backend-api', defaultModel: 'gpt-5.4',
-    description: '使用 ChatGPT Plus / Pro 订阅',
+    baseURL: 'https://chatgpt.com/backend-api', defaultModel: 'gpt-5.4', directLogin: false,
+    description: '导入本机 ChatGPT Plus / Pro 登录态',
   },
   grok: {
     id: 'grok', name: 'Grok', providerId: 'xai', protocol: 'openai-responses',
-    baseURL: 'https://api.x.ai/v1', defaultModel: 'grok-4.5',
-    description: '使用 SuperGrok / X Premium 订阅',
+    baseURL: 'https://api.x.ai/v1', defaultModel: 'grok-4.5', directLogin: false,
+    description: '导入本机 SuperGrok / X Premium 登录态',
   },
 });
 
@@ -231,6 +231,7 @@ export async function oauthStatus({ autoImport = true } = {}) {
         id: platform.id,
         name: platform.name,
         description: platform.description,
+        direct_login: platform.directLogin,
         signed_in: credentials.get(platform.providerId)?.type === 'oauth',
         provider_id: provider?.id || null,
         default_model: provider?.default_model || platform.defaultModel,
@@ -242,7 +243,12 @@ export async function oauthStatus({ autoImport = true } = {}) {
 }
 
 export async function startOAuthLogin(platformId, mode) {
-  platformOf(platformId);
+  const platform = platformOf(platformId);
+  if (!platform.directLogin) {
+    const error = new Error(`${platform.name} 仅支持导入本机登录态，不会打开官网授权页面`);
+    error.code = 400;
+    throw error;
+  }
   return loginRunners.get(platformId).start(mode);
 }
 

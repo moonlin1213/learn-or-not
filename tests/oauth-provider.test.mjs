@@ -17,7 +17,7 @@ fs.writeFileSync(dshOAuthFile, JSON.stringify({
 }, null, 2) + '\n', { mode: 0o600 });
 const { store, dumpAll } = await import('../server/db.js');
 const {
-  oauthStatus, oauthCredentials, logoutOAuth, importOAuthFromDsh,
+  oauthStatus, oauthCredentials, logoutOAuth, importOAuthFromDsh, startOAuthLogin,
   autoImportDshOAuth, reconcileOAuthProviders,
 } = await import('../server/oauth.js');
 
@@ -90,4 +90,20 @@ test('OAuth logout remains disconnected across later status reads until explicit
 
   await importOAuthFromDsh('codex');
   assert.equal((await oauthStatus()).platforms.find(platform => platform.id === 'codex').signed_in, true);
+});
+
+test('subscription platforms reject direct official OAuth and expose local import only', async () => {
+  const status = await oauthStatus({ autoImport: false });
+  assert.equal(status.platforms.find(platform => platform.id === 'codex').direct_login, false);
+  assert.equal(status.platforms.find(platform => platform.id === 'grok').direct_login, false);
+  for (const platformId of ['codex', 'grok']) {
+    await assert.rejects(
+      startOAuthLogin(platformId, 'device_code'),
+      error => {
+        assert.equal(error.code, 400);
+        assert.match(error.message, /仅支持导入本机登录态，不会打开官网授权页面/);
+        return true;
+      },
+    );
+  }
 });

@@ -1692,6 +1692,9 @@ async function renderSettings() {
     const state = platform.signed_in ? '已连接' : login.running ? '等待授权' : login.error ? '连接失败' : '未连接';
     const stateClass = platform.signed_in ? 'connected' : login.error ? 'failed' : login.running ? 'waiting' : '';
     const challenge = login.challenge;
+    const importAction = oauth.dsh_available
+      ? '<button class="small primary" data-oauth-act="import">导入本机登录态</button>'
+      : '<span class="oauth-local-hint">未检测到本机 DSH 登录态</span>';
     return `<article class="oauth-card ${stateClass}" data-platform="${esc(platform.id)}">
       <div class="oauth-card-head">
         <div><b>${esc(platform.name)}</b><span>${esc(platform.description)}</span></div>
@@ -1709,13 +1712,13 @@ async function renderSettings() {
       ${!platform.signed_in ? `<div class="oauth-actions">
         ${login.running
           ? `<button class="small ghost" data-oauth-act="open">重新打开授权页</button><button class="small ghost" data-oauth-act="cancel">取消</button>`
-          : `<button class="small primary" data-oauth-act="login">连接 ${esc(platform.name)}</button>${oauth.dsh_available ? '<button class="small ghost" data-oauth-act="import">同步 DSH 登录</button>' : ''}`}
+          : `${platform.direct_login ? `<button class="small primary" data-oauth-act="login">连接 ${esc(platform.name)}</button>` : ''}${importAction}`}
       </div>` : ''}
     </article>`;
   }).join('');
   app.innerHTML = `
     <h1 class="page-title">设置</h1>
-    <p class="page-sub">模型来源决定课程质量。可以连接订阅账户，也可以导入 DSH 或手动添加 provider。</p>
+    <p class="page-sub">模型来源决定课程质量。订阅账户仅导入本机登录态，不会打开官网授权；也可以手动添加 provider。</p>
     <div class="settings-duo">
       <div class="card settings-panel">
         <div class="settings-title-row">
@@ -1877,7 +1880,7 @@ async function renderSettings() {
         <span class="tag green">OAuth</span>
       </div>
       <div class="oauth-grid">${oauthCards}</div>
-      <div class="oauth-footnote">Codex 使用 ChatGPT Plus / Pro；Grok 使用 SuperGrok / X Premium。授权与模型请求由官方登录端点完成。</div>
+      <div class="oauth-footnote">Codex 与 Grok 都只读取本机已有的 DSH 登录态，不会从 LearnOrNot 发起官网授权。</div>
     </section>
 
     <div id="provider-list" style="margin-bottom:22px"></div>`;
@@ -1910,7 +1913,7 @@ async function renderSettings() {
       } else if (action === 'import') {
         button.textContent = '同步中…';
         await api(`/api/oauth/${platformId}/import-dsh`, { method: 'POST', body: {} });
-        toast(`${platform.name} 已从 DSH 同步`);
+        toast(`${platform.name} 已导入本机登录态`);
         await renderSettings();
         refreshBadge();
       } else if (action === 'logout') {
