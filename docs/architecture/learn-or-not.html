@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark" data-preset="classic">
+<html lang="zh-CN" data-theme="dark" data-preset="classic">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -31,14 +31,7 @@
       } catch (_) {}
     })();
   </script>
-  <!-- Async font load: a blackholed network must not block first paint.
-       The body font stack falls back to system monospace until it lands. -->
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-        rel="stylesheet" media="print" onload="this.media='all'">
-  <noscript>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-  </noscript>
+  <!-- Offline-first: use the local system monospace stack; no external font requests. -->
   <style>
     /* ==========================================================
        THEME VARIABLES — switch by toggling [data-theme] on <html>
@@ -4840,8 +4833,8 @@
       </div>
     </div>
 
-    <script id="archify-guided-views-data" type="application/json">[{"id":"main-learning-path","label":"主学习链路","focus":["learner","electron","web-ui","local-api","learning-pipeline","llm-router","model-upstreams"],"note":"从桌面交互进入本机 API，再由学习流水线和协议适配层调用模型。"},{"id":"oauth-and-models","label":"OAuth 与模型路由","focus":["web-ui","local-api","llm-router","oauth-bridge","model-upstreams"],"note":"Codex 与 Grok 只导入本机登录态；普通 Provider 由统一 LLM 路由按协议调用。"},{"id":"local-services","label":"本地数据与扩展","focus":["local-api","sqlite-store","obsidian-vault","companion-agent","edge-tts"],"note":"本机 SQLite 保存学习状态，API 还可连接陪伴 Agent、Edge TTS 与翰林院目录。"}]</script>
-    <script id="archify-source-evidence-data" type="application/json">{"schemaVersion":1,"verified":true,"repository":{"url":"https://github.com/moonlin1213/learn-or-not","revision":"9bb0954e2a8737c670798cceed4104ec45f680cc","shortRevision":"9bb0954"},"referenceCount":23,"nodes":{"electron":[{"path":"electron/main.cjs","line":70,"endLine":80,"label":"内嵌后端启动","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/electron/main.cjs#L70-L80"},{"path":"electron/main.cjs","line":98,"endLine":139,"label":"桌面窗口","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/electron/main.cjs#L98-L139"}],"web-ui":[{"path":"public/app.js","line":9,"endLine":20,"label":"API 客户端","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/public/app.js#L9-L20"},{"path":"public/app.js","line":279,"endLine":324,"label":"页面路由","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/public/app.js#L279-L324"}],"local-api":[{"path":"server/index.js","line":137,"endLine":145,"label":"路由注册","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/index.js#L137-L145"},{"path":"server/index.js","line":839,"endLine":877,"label":"HTTP 服务","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/index.js#L839-L877"}],"learning-pipeline":[{"path":"server/pipeline.js","line":39,"label":"生成大纲","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/pipeline.js#L39"},{"path":"server/pipeline.js","line":96,"label":"生成课程","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/pipeline.js#L96"},{"path":"server/pipeline.js","line":349,"endLine":412,"label":"私教对话","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/pipeline.js#L349-L412"}],"llm-router":[{"path":"server/llm.js","line":78,"endLine":127,"label":"非流式路由","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/llm.js#L78-L127"},{"path":"server/llm.js","line":132,"endLine":180,"label":"流式路由","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/llm.js#L132-L180"}],"model-upstreams":[{"path":"server/llm.js","line":83,"endLine":124,"label":"远程协议调用","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/llm.js#L83-L124"},{"path":"server/oauth.js","line":26,"endLine":35,"label":"订阅平台","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/oauth.js#L26-L35"}],"oauth-bridge":[{"path":"server/oauth.js","line":185,"endLine":230,"label":"导入与对账","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/oauth.js#L185-L230"},{"path":"server/oauth-store.js","line":20,"endLine":56,"label":"原子凭据存储","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/oauth-store.js#L20-L56"}],"sqlite-store":[{"path":"server/db.js","line":1,"endLine":12,"label":"数据库初始化","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/db.js#L1-L12"},{"path":"server/db.js","line":241,"endLine":266,"label":"数据访问层","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/db.js#L241-L266"}],"obsidian-vault":[{"path":"server/exporter.js","line":7,"endLine":12,"label":"导出目录","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/exporter.js#L7-L12"},{"path":"server/exporter.js","line":36,"endLine":140,"label":"Markdown 导出","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/exporter.js#L36-L140"}],"companion-agent":[{"path":"server/companion.js","line":16,"endLine":22,"label":"本地预设","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/companion.js#L16-L22"},{"path":"server/companion.js","line":71,"endLine":110,"label":"SSE 对话","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/companion.js#L71-L110"}],"edge-tts":[{"path":"server/tts.js","line":9,"label":"语音端点","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/tts.js#L9"},{"path":"server/tts.js","line":89,"endLine":106,"label":"缓存与重试","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/tts.js#L89-L106"}]}}</script>
+    <script id="archify-guided-views-data" type="application/json">[{"id":"main-learning-path","label":"主学习链路","focus":["learner","electron","web-ui","local-api","learning-pipeline","llm-router","model-upstreams"],"note":"从浏览器或可选 Electron 桌面壳进入本机 API，再由学习流水线和协议适配层调用模型。"},{"id":"oauth-and-models","label":"OAuth 与模型路由","focus":["web-ui","local-api","llm-router","oauth-bridge","model-upstreams"],"note":"Codex 与 Grok 只导入本机登录态；普通 Provider 由统一 LLM 路由按协议调用。"},{"id":"local-services","label":"本地数据与扩展","focus":["local-api","sqlite-store","obsidian-vault","companion-agent","edge-tts"],"note":"本机 SQLite 保存学习状态，API 还可连接陪伴 Agent、Edge TTS 与翰林院目录。"}]</script>
+    <script id="archify-source-evidence-data" type="application/json">{"schemaVersion":1,"verified":true,"repository":{"url":"https://github.com/moonlin1213/learn-or-not","revision":"9bb0954e2a8737c670798cceed4104ec45f680cc","shortRevision":"9bb0954"},"referenceCount":23,"nodes":{"electron":[{"path":"electron/main.cjs","line":70,"endLine":80,"label":"复用或启动后端","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/electron/main.cjs#L70-L80"},{"path":"electron/main.cjs","line":98,"endLine":139,"label":"桌面窗口","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/electron/main.cjs#L98-L139"}],"web-ui":[{"path":"public/app.js","line":9,"endLine":20,"label":"API 客户端","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/public/app.js#L9-L20"},{"path":"public/app.js","line":279,"endLine":324,"label":"页面路由","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/public/app.js#L279-L324"}],"local-api":[{"path":"server/index.js","line":137,"endLine":145,"label":"路由注册","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/index.js#L137-L145"},{"path":"server/index.js","line":839,"endLine":877,"label":"HTTP 服务","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/index.js#L839-L877"}],"learning-pipeline":[{"path":"server/pipeline.js","line":39,"label":"生成大纲","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/pipeline.js#L39"},{"path":"server/pipeline.js","line":96,"label":"生成课程","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/pipeline.js#L96"},{"path":"server/pipeline.js","line":349,"endLine":412,"label":"私教对话","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/pipeline.js#L349-L412"}],"llm-router":[{"path":"server/llm.js","line":78,"endLine":127,"label":"非流式路由","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/llm.js#L78-L127"},{"path":"server/llm.js","line":132,"endLine":180,"label":"流式路由","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/llm.js#L132-L180"}],"model-upstreams":[{"path":"server/llm.js","line":83,"endLine":124,"label":"远程协议调用","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/llm.js#L83-L124"},{"path":"server/oauth.js","line":26,"endLine":35,"label":"订阅平台","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/oauth.js#L26-L35"}],"oauth-bridge":[{"path":"server/oauth.js","line":185,"endLine":230,"label":"导入与对账","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/oauth.js#L185-L230"},{"path":"server/oauth-store.js","line":20,"endLine":56,"label":"原子凭据存储","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/oauth-store.js#L20-L56"}],"sqlite-store":[{"path":"server/db.js","line":1,"endLine":12,"label":"数据库初始化","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/db.js#L1-L12"},{"path":"server/db.js","line":241,"endLine":266,"label":"数据访问层","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/db.js#L241-L266"}],"obsidian-vault":[{"path":"server/exporter.js","line":7,"endLine":12,"label":"导出目录","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/exporter.js#L7-L12"},{"path":"server/exporter.js","line":36,"endLine":140,"label":"Markdown 导出","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/exporter.js#L36-L140"}],"companion-agent":[{"path":"server/companion.js","line":16,"endLine":22,"label":"本地预设","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/companion.js#L16-L22"},{"path":"server/companion.js","line":71,"endLine":110,"label":"SSE 对话","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/companion.js#L71-L110"}],"edge-tts":[{"path":"server/tts.js","line":9,"label":"语音端点","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/tts.js#L9"},{"path":"server/tts.js","line":89,"endLine":106,"label":"缓存与重试","href":"https://github.com/moonlin1213/learn-or-not/blob/9bb0954e2a8737c670798cceed4104ec45f680cc/server/tts.js#L89-L106"}]}}</script>
     <div class="guided-views no-print" id="guided-views" hidden aria-label="Guided diagram views">
       <button id="guided-view-prev" type="button" aria-label="Previous guided view" title="Previous guided view ([)">&#8592;</button>
       <div class="guided-view-copy">
@@ -4910,25 +4903,26 @@
 
         <!-- Boundaries (behind everything) -->
         <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" x="150" y="50" width="1310" height="584" rx="12" class="c-region" stroke-width="1"/>
-        <text x="158" y="68" class="t-cloud" font-size="9" font-weight="600">LearnOrNot 桌面应用 · 本机进程与数据</text>
+        <text x="158" y="68" class="t-cloud" font-size="9" font-weight="600">LearnOrNot 本机运行时 · 进程与数据</text>
 
         <!-- Connection paths (before components for correct z-order) -->
-        <path data-edge-from="learner" data-edge-to="electron" data-edge-label="桌面操作" data-edge-key="0" data-edge-id="learner-electron" data-composition-points="130,342;180,342" d="M 130 342 L 180 342" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="electron" data-edge-to="web-ui" data-edge-label="加载页面" data-edge-key="1" data-edge-id="electron-web" data-composition-points="340,342;430,342" d="M 340 342 L 430 342" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="web-ui" data-edge-to="local-api" data-edge-label="fetch /api/*" data-edge-key="2" data-edge-id="web-api" data-composition-points="590,342;700,342" d="M 590 342 L 700 342" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="local-api" data-edge-to="learning-pipeline" data-edge-label="学习任务" data-edge-key="3" data-edge-id="api-pipeline" data-composition-points="870,342;970,342" d="M 870 342 L 970 342" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="learning-pipeline" data-edge-to="llm-router" data-edge-label="Prompt / SSE" data-edge-key="4" data-edge-id="pipeline-llm" data-composition-points="1140,342;1240,342" d="M 1140 342 L 1240 342" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="llm-router" data-edge-to="model-upstreams" data-edge-label="HTTPS" data-edge-key="5" data-edge-id="llm-upstream" data-composition-points="1430,342;1540,342" d="M 1430 342 L 1540 342" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="local-api" data-edge-to="sqlite-store" data-edge-label="SQL" data-edge-key="6" data-edge-id="api-db" data-composition-points="785,384;785,530" d="M 785 384 L 785 530" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="local-api" data-edge-to="obsidian-vault" data-edge-label="Markdown" data-edge-key="7" data-edge-id="api-obsidian" data-composition-points="785,384;785,430;920,430;920,572;970,572" d="M 785 384 L 785 422 Q 785 430 793 430 L 912 430 Q 920 430 920 438 L 920 564 Q 920 572 928 572 L 970 572" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="local-api" data-edge-to="companion-agent" data-edge-label="POST + SSE" data-edge-key="8" data-edge-id="api-companion" data-composition-points="870,342;900,342;900,460;1190,460;1190,572;1240,572" d="M 870 342 L 892 342 Q 900 342 900 350 L 900 452 Q 900 460 908 460 L 1182 460 Q 1190 460 1190 468 L 1190 564 Q 1190 572 1198 572 L 1240 572" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="local-api" data-edge-to="edge-tts" data-edge-label="WebSocket 语音" data-edge-key="9" data-edge-id="api-tts" data-composition-points="700,342;650,342;650,500;1490,500;1490,572;1540,572" d="M 700 342 L 658 342 Q 650 342 650 350 L 650 492 Q 650 500 658 500 L 1482 500 Q 1490 500 1490 508 L 1490 564 Q 1490 572 1498 572 L 1540 572" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="local-api" data-edge-to="oauth-bridge" data-edge-label="导入 / 对账" data-edge-key="10" data-edge-id="api-oauth" data-composition-points="785,300;785,276;811,276;811,192;795,192;795,168" d="M 785 300 L 785 284 Q 785 276 793 276 L 803 276 Q 811 276 811 268 L 811 200 Q 811 192 803 192 L 803 192 Q 795 192 795 184 L 795 168" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="oauth-bridge" data-edge-to="llm-router" data-edge-label="OAuth Provider" data-edge-key="11" data-edge-id="oauth-llm" data-composition-points="890,124;930,124;1335,124;1335,250;1335,300" d="M 890 124 L 922 124 Q 930 124 938 124 L 1327 124 Q 1335 124 1335 132 L 1335 242 Q 1335 250 1335 258 L 1335 300" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="learner" data-edge-to="electron" data-edge-label="桌面应用" data-edge-key="0" data-edge-id="learner-electron" data-composition-points="130,342;180,342" d="M 130 342 L 180 342" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="learner" data-edge-to="web-ui" data-edge-label="浏览器访问" data-edge-key="1" data-edge-id="learner-web" data-composition-points="75,310;75,250;510,250;510,300" d="M 75 310 L 75 258 Q 75 250 83 250 L 502 250 Q 510 250 510 258 L 510 300" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="electron" data-edge-to="web-ui" data-edge-label="加载页面" data-edge-key="2" data-edge-id="electron-web" data-composition-points="340,342;430,342" d="M 340 342 L 430 342" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="web-ui" data-edge-to="local-api" data-edge-label="fetch /api/*" data-edge-key="3" data-edge-id="web-api" data-composition-points="590,342;700,342" d="M 590 342 L 700 342" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="local-api" data-edge-to="learning-pipeline" data-edge-label="学习任务" data-edge-key="4" data-edge-id="api-pipeline" data-composition-points="870,342;970,342" d="M 870 342 L 970 342" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="learning-pipeline" data-edge-to="llm-router" data-edge-label="Prompt / SSE" data-edge-key="5" data-edge-id="pipeline-llm" data-composition-points="1140,342;1240,342" d="M 1140 342 L 1240 342" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="llm-router" data-edge-to="model-upstreams" data-edge-label="HTTPS" data-edge-key="6" data-edge-id="llm-upstream" data-composition-points="1430,342;1540,342" d="M 1430 342 L 1540 342" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="local-api" data-edge-to="sqlite-store" data-edge-label="SQL" data-edge-key="7" data-edge-id="api-db" data-composition-points="785,384;785,530" d="M 785 384 L 785 530" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="local-api" data-edge-to="obsidian-vault" data-edge-label="Markdown" data-edge-key="8" data-edge-id="api-obsidian" data-composition-points="785,384;785,430;920,430;920,572;970,572" d="M 785 384 L 785 422 Q 785 430 793 430 L 912 430 Q 920 430 920 438 L 920 564 Q 920 572 928 572 L 970 572" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="local-api" data-edge-to="companion-agent" data-edge-label="POST + SSE" data-edge-key="9" data-edge-id="api-companion" data-composition-points="870,342;900,342;900,460;1190,460;1190,572;1240,572" d="M 870 342 L 892 342 Q 900 342 900 350 L 900 452 Q 900 460 908 460 L 1182 460 Q 1190 460 1190 468 L 1190 564 Q 1190 572 1198 572 L 1240 572" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="local-api" data-edge-to="edge-tts" data-edge-label="WebSocket 语音" data-edge-key="10" data-edge-id="api-tts" data-composition-points="700,342;650,342;650,500;1490,500;1490,572;1540,572" d="M 700 342 L 658 342 Q 650 342 650 350 L 650 492 Q 650 500 658 500 L 1482 500 Q 1490 500 1490 508 L 1490 564 Q 1490 572 1498 572 L 1540 572" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="local-api" data-edge-to="oauth-bridge" data-edge-label="导入 / 对账" data-edge-key="11" data-edge-id="api-oauth" data-composition-points="785,300;785,276;811,276;811,192;795,192;795,168" d="M 785 300 L 785 284 Q 785 276 793 276 L 803 276 Q 811 276 811 268 L 811 200 Q 811 192 803 192 L 803 192 Q 795 192 795 184 L 795 168" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="oauth-bridge" data-edge-to="llm-router" data-edge-label="OAuth Provider" data-edge-key="12" data-edge-id="oauth-llm" data-composition-points="890,124;930,124;1335,124;1335,250;1335,300" d="M 890 124 L 922 124 Q 930 124 938 124 L 1327 124 Q 1335 124 1335 132 L 1335 242 Q 1335 250 1335 258 L 1335 300" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
 
         <!-- Components -->
-        <g id="node-learner" data-node-id="learner" data-node-label="学习者" tabindex="0" role="button" aria-label="Focus 学习者, 桌面交互, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="桌面交互" data-node-context="Architecture component">
-          <title>学习者 · 桌面交互 · Architecture component</title>
+        <g id="node-learner" data-node-id="learner" data-node-label="学习者" tabindex="0" role="button" aria-label="Focus 学习者, 浏览器或桌面应用, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="浏览器或桌面应用" data-node-context="Architecture component">
+          <title>学习者 · 浏览器或桌面应用 · Architecture component</title>
           <rect x="20" y="310" width="110" height="64" rx="6" class="c-mask"/>
           <rect x="20" y="310" width="110" height="64" rx="6" class="c-external" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(26 316) scale(0.6875)">
@@ -4936,11 +4930,11 @@
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
           <text data-detail-anchor x="75" y="340" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">学习者</text>
-        <text data-detail="context" x="75" y="356" class="t-muted" font-size="9" text-anchor="middle">桌面交互</text>
+        <text data-detail="context" x="75" y="356" class="t-muted" font-size="9" text-anchor="middle">浏览器或桌面应用</text>
         </g>
 
-        <g id="node-electron" data-node-id="electron" data-node-label="Electron 主进程" tabindex="0" role="button" aria-label="Focus Electron 主进程, 单实例 · BrowserWindow, LearnOrNot 桌面应用 · 本机进程与数据" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="单实例 · BrowserWindow" data-node-tag="127.0.0.1:3210" data-node-context="LearnOrNot 桌面应用 · 本机进程与数据">
-          <title>Electron 主进程 · 单实例 · BrowserWindow · LearnOrNot 桌面应用 · 本机进程与数据 · 127.0.0.1:3210</title>
+        <g id="node-electron" data-node-id="electron" data-node-label="Electron 可选桌面壳" tabindex="0" role="button" aria-label="Focus Electron 可选桌面壳, 复用或自启后端 · BrowserWindow, LearnOrNot 本机运行时 · 进程与数据" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="复用或自启后端 · BrowserWindow" data-node-tag="127.0.0.1:3210" data-node-context="LearnOrNot 本机运行时 · 进程与数据">
+          <title>Electron 可选桌面壳 · 复用或自启后端 · BrowserWindow · LearnOrNot 本机运行时 · 进程与数据 · 127.0.0.1:3210</title>
           <rect x="180" y="300" width="160" height="84" rx="6" class="c-mask"/>
           <rect x="180" y="300" width="160" height="84" rx="6" class="c-frontend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(186 306) scale(0.6875)">
@@ -4949,13 +4943,13 @@
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-detail-anchor x="260" y="340" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Electron 主进程</text>
-        <text data-detail="context" x="260" y="356" class="t-muted" font-size="9" text-anchor="middle">单实例 · BrowserWindow</text>
+          <text data-detail-anchor x="260" y="340" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Electron 可选桌面壳</text>
+        <text data-detail="context" x="260" y="356" class="t-muted" font-size="8.4" text-anchor="middle">复用或自启后端 · BrowserWindow</text>
         <text data-detail="fine" x="260" y="376" class="t-frontend" font-size="7" text-anchor="middle">127.0.0.1:3210</text>
         </g>
 
-        <g id="node-web-ui" data-node-id="web-ui" data-node-label="Web 前端" tabindex="0" role="button" aria-label="Focus Web 前端, Hash 路由 · fetch API, LearnOrNot 桌面应用 · 本机进程与数据" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Hash 路由 · fetch API" data-node-context="LearnOrNot 桌面应用 · 本机进程与数据">
-          <title>Web 前端 · Hash 路由 · fetch API · LearnOrNot 桌面应用 · 本机进程与数据</title>
+        <g id="node-web-ui" data-node-id="web-ui" data-node-label="Web 前端" tabindex="0" role="button" aria-label="Focus Web 前端, Hash 路由 · fetch API, LearnOrNot 本机运行时 · 进程与数据" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Hash 路由 · fetch API" data-node-context="LearnOrNot 本机运行时 · 进程与数据">
+          <title>Web 前端 · Hash 路由 · fetch API · LearnOrNot 本机运行时 · 进程与数据</title>
           <rect x="430" y="300" width="160" height="84" rx="6" class="c-mask"/>
           <rect x="430" y="300" width="160" height="84" rx="6" class="c-frontend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(436 306) scale(0.6875)">
@@ -4968,8 +4962,8 @@
         <text data-detail="context" x="510" y="356" class="t-muted" font-size="9" text-anchor="middle">Hash 路由 · fetch API</text>
         </g>
 
-        <g id="node-local-api" data-node-id="local-api" data-node-label="本机 HTTP 服务" tabindex="0" role="button" aria-label="Focus 本机 HTTP 服务, 静态站点 + /api/*, LearnOrNot 桌面应用 · 本机进程与数据" aria-pressed="false" data-node-kind="backend" data-node-sublabel="静态站点 + /api/*" data-node-tag="loopback only" data-node-context="LearnOrNot 桌面应用 · 本机进程与数据">
-          <title>本机 HTTP 服务 · 静态站点 + /api/* · LearnOrNot 桌面应用 · 本机进程与数据 · loopback only</title>
+        <g id="node-local-api" data-node-id="local-api" data-node-label="本机 HTTP 服务" tabindex="0" role="button" aria-label="Focus 本机 HTTP 服务, 静态站点 + /api/*, LearnOrNot 本机运行时 · 进程与数据" aria-pressed="false" data-node-kind="backend" data-node-sublabel="静态站点 + /api/*" data-node-tag="loopback only" data-node-context="LearnOrNot 本机运行时 · 进程与数据">
+          <title>本机 HTTP 服务 · 静态站点 + /api/* · LearnOrNot 本机运行时 · 进程与数据 · loopback only</title>
           <rect x="700" y="300" width="170" height="84" rx="6" class="c-mask"/>
           <rect x="700" y="300" width="170" height="84" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(706 306) scale(0.6875)">
@@ -4980,8 +4974,8 @@
         <text data-detail="fine" x="785" y="376" class="t-backend" font-size="7" text-anchor="middle">loopback only</text>
         </g>
 
-        <g id="node-learning-pipeline" data-node-id="learning-pipeline" data-node-label="学习流水线" tabindex="0" role="button" aria-label="Focus 学习流水线, 大纲 · 课程 · 测验 · 私教, LearnOrNot 桌面应用 · 本机进程与数据" aria-pressed="false" data-node-kind="backend" data-node-sublabel="大纲 · 课程 · 测验 · 私教" data-node-context="LearnOrNot 桌面应用 · 本机进程与数据">
-          <title>学习流水线 · 大纲 · 课程 · 测验 · 私教 · LearnOrNot 桌面应用 · 本机进程与数据</title>
+        <g id="node-learning-pipeline" data-node-id="learning-pipeline" data-node-label="学习流水线" tabindex="0" role="button" aria-label="Focus 学习流水线, 大纲 · 课程 · 测验 · 私教, LearnOrNot 本机运行时 · 进程与数据" aria-pressed="false" data-node-kind="backend" data-node-sublabel="大纲 · 课程 · 测验 · 私教" data-node-context="LearnOrNot 本机运行时 · 进程与数据">
+          <title>学习流水线 · 大纲 · 课程 · 测验 · 私教 · LearnOrNot 本机运行时 · 进程与数据</title>
           <rect x="970" y="300" width="170" height="84" rx="6" class="c-mask"/>
           <rect x="970" y="300" width="170" height="84" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(976 306) scale(0.6875)">
@@ -4991,8 +4985,8 @@
         <text data-detail="context" x="1055" y="356" class="t-muted" font-size="9" text-anchor="middle">大纲 · 课程 · 测验 · 私教</text>
         </g>
 
-        <g id="node-llm-router" data-node-id="llm-router" data-node-label="LLM 协议适配层" tabindex="0" role="button" aria-label="Focus LLM 协议适配层, Completions · Responses · Anthropic, LearnOrNot 桌面应用 · 本机进程与数据" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Completions · Responses · Anthropic" data-node-context="LearnOrNot 桌面应用 · 本机进程与数据">
-          <title>LLM 协议适配层 · Completions · Responses · Anthropic · LearnOrNot 桌面应用 · 本机进程与数据</title>
+        <g id="node-llm-router" data-node-id="llm-router" data-node-label="LLM 协议适配层" tabindex="0" role="button" aria-label="Focus LLM 协议适配层, Completions · Responses · Anthropic, LearnOrNot 本机运行时 · 进程与数据" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Completions · Responses · Anthropic" data-node-context="LearnOrNot 本机运行时 · 进程与数据">
+          <title>LLM 协议适配层 · Completions · Responses · Anthropic · LearnOrNot 本机运行时 · 进程与数据</title>
           <rect x="1240" y="300" width="190" height="84" rx="6" class="c-mask"/>
           <rect x="1240" y="300" width="190" height="84" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(1246 306) scale(0.6875)">
@@ -5013,8 +5007,8 @@
         <text data-detail="context" x="1625" y="356" class="t-muted" font-size="9" text-anchor="middle">自定义 API · Codex · Grok</text>
         </g>
 
-        <g id="node-oauth-bridge" data-node-id="oauth-bridge" data-node-label="OAuth 凭据桥" tabindex="0" role="button" aria-label="Focus OAuth 凭据桥, DSH 登录态 → 本地凭据库, LearnOrNot 桌面应用 · 本机进程与数据" aria-pressed="false" data-node-kind="security" data-node-sublabel="DSH 登录态 → 本地凭据库" data-node-tag="Codex / Grok" data-node-context="LearnOrNot 桌面应用 · 本机进程与数据">
-          <title>OAuth 凭据桥 · DSH 登录态 → 本地凭据库 · LearnOrNot 桌面应用 · 本机进程与数据 · Codex / Grok</title>
+        <g id="node-oauth-bridge" data-node-id="oauth-bridge" data-node-label="OAuth 凭据桥" tabindex="0" role="button" aria-label="Focus OAuth 凭据桥, DSH 登录态 → 本地凭据库, LearnOrNot 本机运行时 · 进程与数据" aria-pressed="false" data-node-kind="security" data-node-sublabel="DSH 登录态 → 本地凭据库" data-node-tag="Codex / Grok" data-node-context="LearnOrNot 本机运行时 · 进程与数据">
+          <title>OAuth 凭据桥 · DSH 登录态 → 本地凭据库 · LearnOrNot 本机运行时 · 进程与数据 · Codex / Grok</title>
           <rect x="700" y="80" width="190" height="88" rx="6" class="c-mask"/>
           <rect x="700" y="80" width="190" height="88" rx="6" class="c-security" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(706 86) scale(0.6875)">
@@ -5026,8 +5020,8 @@
         <text data-detail="fine" x="795" y="160" class="t-security" font-size="7" text-anchor="middle">Codex / Grok</text>
         </g>
 
-        <g id="node-sqlite-store" data-node-id="sqlite-store" data-node-label="SQLite 数据库" tabindex="0" role="button" aria-label="Focus SQLite 数据库, 课程 · 进度 · Provider · 会话, LearnOrNot 桌面应用 · 本机进程与数据" aria-pressed="false" data-node-kind="database" data-node-sublabel="课程 · 进度 · Provider · 会话" data-node-tag="learnloop.db" data-node-context="LearnOrNot 桌面应用 · 本机进程与数据">
-          <title>SQLite 数据库 · 课程 · 进度 · Provider · 会话 · LearnOrNot 桌面应用 · 本机进程与数据 · learnloop.db</title>
+        <g id="node-sqlite-store" data-node-id="sqlite-store" data-node-label="SQLite 数据库" tabindex="0" role="button" aria-label="Focus SQLite 数据库, 课程 · 进度 · Provider · 会话, LearnOrNot 本机运行时 · 进程与数据" aria-pressed="false" data-node-kind="database" data-node-sublabel="课程 · 进度 · Provider · 会话" data-node-tag="learnloop.db" data-node-context="LearnOrNot 本机运行时 · 进程与数据">
+          <title>SQLite 数据库 · 课程 · 进度 · Provider · 会话 · LearnOrNot 本机运行时 · 进程与数据 · learnloop.db</title>
           <rect x="700" y="530" width="170" height="84" rx="6" class="c-mask"/>
           <rect x="700" y="530" width="170" height="84" rx="6" class="c-database" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(706 536) scale(0.6875)">
@@ -5077,51 +5071,55 @@
         </g>
 
         <!-- Connection labels -->
-        <g data-detail="context" data-edge-from="learner" data-edge-to="electron" data-edge-label="桌面操作" data-edge-key="0" data-edge-id="learner-electron">
+        <g data-detail="context" data-edge-from="learner" data-edge-to="electron" data-edge-label="桌面应用" data-edge-key="0" data-edge-id="learner-electron">
           <rect x="130.8" y="322" width="48.4" height="14" rx="3" class="c-mask"/>
-          <text x="155" y="332" class="t-backend" font-size="8" text-anchor="middle">桌面操作</text>
+          <text x="155" y="332" class="t-backend" font-size="8" text-anchor="middle">桌面应用</text>
         </g>
-        <g data-detail="context" data-edge-from="electron" data-edge-to="web-ui" data-edge-label="加载页面" data-edge-key="1" data-edge-id="electron-web">
+        <g data-detail="context" data-edge-from="learner" data-edge-to="web-ui" data-edge-label="浏览器访问" data-edge-key="1" data-edge-id="learner-web">
+          <rect x="256" y="230" width="58" height="14" rx="3" class="c-mask"/>
+          <text x="285" y="240" class="t-backend" font-size="8" text-anchor="middle">浏览器访问</text>
+        </g>
+        <g data-detail="context" data-edge-from="electron" data-edge-to="web-ui" data-edge-label="加载页面" data-edge-key="2" data-edge-id="electron-web">
           <rect x="360.8" y="322" width="48.4" height="14" rx="3" class="c-mask"/>
           <text x="385" y="332" class="t-backend" font-size="8" text-anchor="middle">加载页面</text>
         </g>
-        <g data-detail="context" data-edge-from="web-ui" data-edge-to="local-api" data-edge-label="fetch /api/*" data-edge-key="2" data-edge-id="web-api">
+        <g data-detail="context" data-edge-from="web-ui" data-edge-to="local-api" data-edge-label="fetch /api/*" data-edge-key="3" data-edge-id="web-api">
           <rect x="611.2" y="322" width="67.6" height="14" rx="3" class="c-mask"/>
           <text x="645" y="332" class="t-backend" font-size="8" text-anchor="middle">fetch /api/*</text>
         </g>
-        <g data-detail="context" data-edge-from="local-api" data-edge-to="learning-pipeline" data-edge-label="学习任务" data-edge-key="3" data-edge-id="api-pipeline">
+        <g data-detail="context" data-edge-from="local-api" data-edge-to="learning-pipeline" data-edge-label="学习任务" data-edge-key="4" data-edge-id="api-pipeline">
           <rect x="895.8" y="322" width="48.4" height="14" rx="3" class="c-mask"/>
           <text x="920" y="332" class="t-backend" font-size="8" text-anchor="middle">学习任务</text>
         </g>
-        <g data-detail="context" data-edge-from="learning-pipeline" data-edge-to="llm-router" data-edge-label="Prompt / SSE" data-edge-key="4" data-edge-id="pipeline-llm">
+        <g data-detail="context" data-edge-from="learning-pipeline" data-edge-to="llm-router" data-edge-label="Prompt / SSE" data-edge-key="5" data-edge-id="pipeline-llm">
           <rect x="1156.2" y="322" width="67.6" height="14" rx="3" class="c-mask"/>
           <text x="1190" y="332" class="t-backend" font-size="8" text-anchor="middle">Prompt / SSE</text>
         </g>
-        <g data-detail="context" data-edge-from="llm-router" data-edge-to="model-upstreams" data-edge-label="HTTPS" data-edge-key="5" data-edge-id="llm-upstream">
+        <g data-detail="context" data-edge-from="llm-router" data-edge-to="model-upstreams" data-edge-label="HTTPS" data-edge-key="6" data-edge-id="llm-upstream">
           <rect x="1468" y="322" width="34" height="14" rx="3" class="c-mask"/>
           <text x="1485" y="332" class="t-backend" font-size="8" text-anchor="middle">HTTPS</text>
         </g>
-        <g data-detail="context" data-edge-from="local-api" data-edge-to="sqlite-store" data-edge-label="SQL" data-edge-key="6" data-edge-id="api-db">
+        <g data-detail="context" data-edge-from="local-api" data-edge-to="sqlite-store" data-edge-label="SQL" data-edge-key="7" data-edge-id="api-db">
           <rect x="770" y="445" width="30" height="14" rx="3" class="c-mask"/>
           <text x="785" y="455" class="t-muted" font-size="8" text-anchor="middle">SQL</text>
         </g>
-        <g data-detail="context" data-edge-from="local-api" data-edge-to="obsidian-vault" data-edge-label="Markdown" data-edge-key="7" data-edge-id="api-obsidian">
+        <g data-detail="context" data-edge-from="local-api" data-edge-to="obsidian-vault" data-edge-label="Markdown" data-edge-key="8" data-edge-id="api-obsidian">
           <rect x="825.8" y="410" width="48.4" height="14" rx="3" class="c-mask"/>
           <text x="850" y="420" class="t-messagebus" font-size="8" text-anchor="middle">Markdown</text>
         </g>
-        <g data-detail="context" data-edge-from="local-api" data-edge-to="companion-agent" data-edge-label="POST + SSE" data-edge-key="8" data-edge-id="api-companion">
+        <g data-detail="context" data-edge-from="local-api" data-edge-to="companion-agent" data-edge-label="POST + SSE" data-edge-key="9" data-edge-id="api-companion">
           <rect x="1051" y="440" width="58" height="14" rx="3" class="c-mask"/>
           <text x="1080" y="450" class="t-messagebus" font-size="8" text-anchor="middle">POST + SSE</text>
         </g>
-        <g data-detail="context" data-edge-from="local-api" data-edge-to="edge-tts" data-edge-label="WebSocket 语音" data-edge-key="9" data-edge-id="api-tts">
+        <g data-detail="context" data-edge-from="local-api" data-edge-to="edge-tts" data-edge-label="WebSocket 语音" data-edge-key="10" data-edge-id="api-tts">
           <rect x="1391.4" y="480" width="77.2" height="14" rx="3" class="c-mask"/>
           <text x="1430" y="490" class="t-messagebus" font-size="8" text-anchor="middle">WebSocket 语音</text>
         </g>
-        <g data-detail="context" data-edge-from="local-api" data-edge-to="oauth-bridge" data-edge-label="导入 / 对账" data-edge-key="10" data-edge-id="api-oauth">
+        <g data-detail="context" data-edge-from="local-api" data-edge-to="oauth-bridge" data-edge-label="导入 / 对账" data-edge-key="11" data-edge-id="api-oauth">
           <rect x="753.6" y="225" width="62.8" height="14" rx="3" class="c-mask"/>
           <text x="785" y="235" class="t-security" font-size="8" text-anchor="middle">导入 / 对账</text>
         </g>
-        <g data-detail="context" data-edge-from="oauth-bridge" data-edge-to="llm-router" data-edge-label="OAuth Provider" data-edge-key="11" data-edge-id="oauth-llm">
+        <g data-detail="context" data-edge-from="oauth-bridge" data-edge-to="llm-router" data-edge-label="OAuth Provider" data-edge-key="12" data-edge-id="oauth-llm">
           <rect x="1061.4" y="104" width="77.2" height="14" rx="3" class="c-mask"/>
           <text x="1100" y="114" class="t-security" font-size="8" text-anchor="middle">OAuth Provider</text>
         </g>
@@ -5343,7 +5341,7 @@
           <h3>桌面与 Web</h3>
         </div>
         <ul>
-          <li>&bull; Electron 直接导入并托管 Node 后端，BrowserWindow 只加载 127.0.0.1:3210</li>
+          <li>&bull; 浏览器可直接访问本机服务；Electron 桌面壳复用 3210 上已有服务，否则在主进程内启动后端</li>
           <li>&bull; Web 前端通过同源 /api/* 完成书架、课程、复习、设置与聊天交互</li>
         </ul>
       </div>

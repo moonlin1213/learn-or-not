@@ -15,7 +15,7 @@
         "id": "main-learning-path",
         "label": "主学习链路",
         "focus": ["learner", "electron", "web-ui", "local-api", "learning-pipeline", "llm-router", "model-upstreams"],
-        "note": "从桌面交互进入本机 API，再由学习流水线和协议适配层调用模型。"
+        "note": "从浏览器或可选 Electron 桌面壳进入本机 API，再由学习流水线和协议适配层调用模型。"
       },
       {
         "id": "oauth-and-models",
@@ -36,20 +36,20 @@
       "id": "learner",
       "type": "external",
       "label": "学习者",
-      "sublabel": "桌面交互",
+      "sublabel": "浏览器或桌面应用",
       "pos": [20, 310],
       "size": [110, 64]
     },
     {
       "id": "electron",
       "type": "frontend",
-      "label": "Electron 主进程",
-      "sublabel": "单实例 · BrowserWindow",
+      "label": "Electron 可选桌面壳",
+      "sublabel": "复用或自启后端 · BrowserWindow",
       "tag": "127.0.0.1:3210",
       "pos": [180, 300],
       "size": [160, 84],
       "sources": [
-        { "path": "electron/main.cjs", "line": 70, "end_line": 80, "label": "内嵌后端启动" },
+        { "path": "electron/main.cjs", "line": 70, "end_line": 80, "label": "复用或启动后端" },
         { "path": "electron/main.cjs", "line": 98, "end_line": 139, "label": "桌面窗口" }
       ]
     },
@@ -182,12 +182,13 @@
   "boundaries": [
     {
       "kind": "region",
-      "label": "LearnOrNot 桌面应用 · 本机进程与数据",
+      "label": "LearnOrNot 本机运行时 · 进程与数据",
       "wraps": ["electron", "web-ui", "local-api", "learning-pipeline", "llm-router", "oauth-bridge", "sqlite-store"]
     }
   ],
   "connections": [
-    { "id": "learner-electron", "from": "learner", "to": "electron", "label": "桌面操作", "variant": "emphasis" },
+    { "id": "learner-electron", "from": "learner", "to": "electron", "label": "桌面应用", "variant": "emphasis" },
+    { "id": "learner-web", "from": "learner", "to": "web-ui", "label": "浏览器访问", "variant": "emphasis", "fromSide": "top", "toSide": "top", "via": [[75, 250], [510, 250]], "labelAt": [285, 240] },
     { "id": "electron-web", "from": "electron", "to": "web-ui", "label": "加载页面", "variant": "emphasis" },
     { "id": "web-api", "from": "web-ui", "to": "local-api", "label": "fetch /api/*", "variant": "emphasis" },
     { "id": "api-pipeline", "from": "local-api", "to": "learning-pipeline", "label": "学习任务", "variant": "emphasis" },
@@ -205,7 +206,7 @@
       "dot": "cyan",
       "title": "桌面与 Web",
       "items": [
-        "Electron 直接导入并托管 Node 后端，BrowserWindow 只加载 127.0.0.1:3210",
+        "浏览器可直接访问本机服务；Electron 桌面壳复用 3210 上已有服务，否则在主进程内启动后端",
         "Web 前端通过同源 /api/* 完成书架、课程、复习、设置与聊天交互"
       ]
     },
