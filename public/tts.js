@@ -3,6 +3,7 @@
 // 设置持久化在 localStorage「learnloop.tts」。
 window.TTS = (() => {
   const LS_KEY = 'learnloop.tts';
+  const ENVELOPE_TYPE = 'application/vnd.learnornot.tts';
   const VOICES = [
     { id: 'zh-CN-YunxiNeural', name: '云希 · 男声清亮（讲课感）' },
     { id: 'zh-CN-XiaoxuanNeural', name: '晓萱 · 女声温柔' },
@@ -120,6 +121,24 @@ window.TTS = (() => {
     return null;
   }
 
+  function readingScrollDelta({ rangeTop, stickyBottom, viewportHeight, lineHeight }) {
+    // 播放条下方保留约三行上下文，让高亮句落在第 3～4 行，而不是贴着遮挡边缘。
+    const target = Math.min(stickyBottom + lineHeight * 3.5, viewportHeight - lineHeight * 4);
+    return Math.round(rangeTop - Math.max(stickyBottom + lineHeight, target));
+  }
+
+  function scrollRangeToReadingPosition(range, behavior = 'smooth') {
+    const rect = range?.getBoundingClientRect?.();
+    if (!rect || !Number.isFinite(rect.top)) return;
+    const stickyBottom = Math.max(0, document.querySelector('.lesson-sticky')?.getBoundingClientRect?.().bottom || 0);
+    const startEl = range.startContainer?.parentElement;
+    const computedLineHeight = Number.parseFloat(startEl ? getComputedStyle(startEl).lineHeight : '');
+    const lineHeight = Number.isFinite(computedLineHeight) ? computedLineHeight : 32;
+    const delta = readingScrollDelta({ rangeTop: rect.top, stickyBottom, viewportHeight: window.innerHeight, lineHeight });
+    if (Math.abs(delta) < 2) return;
+    window.scrollBy({ top: delta, behavior });
+  }
+
   function revealChunkPosition(j, index, within) {
     clearLocator();
     const range = findChunkRange(j.rootEl, j.chunks[index], within);
@@ -131,15 +150,15 @@ window.TTS = (() => {
         window.CSS.highlights.set('tts-seek', new window.Highlight(range));
       }
     } catch {}
-    locatorBlock?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    scrollRangeToReadingPosition(range);
     requestAnimationFrame(() => locatorBlock?.classList.add('tts-locate-flash'));
     locatorTimer = setTimeout(clearLocator, 2400);
   }
 
   // ---------- 逐句跟读高亮 ----------
-  // 朗读到哪一句，就把那句淡淡地铺一层底色并滚到视野中央（卡拉OK跟读）。
-  // 句级时间无法从整段音频里精确拿到，按「段内非空白字符占比」推算当前句——
-  // 语速近似均匀，误差半句以内；DOM 映射用 job 级缓存的归一化索引，每帧只做查表。
+  // 朗读到哪一句，就把那句淡淡地铺一层底色并稳定在播放条下方第 3～4 行（卡拉OK跟读）。
+  // 优先使用 Edge 随音频返回的句首时间戳；旧服务端或异常缺失时才按字符占比兜底。
+  // DOM 映射用 job 级缓存的归一化索引，每帧只做查表。
   let karaokeKey = '';   // 'chunk:unit'，句没变不重绘
   let domCursor = 0;     // 平坦文本单调游标：顺序朗读时消歧重复句子；seek 回跳则全局重找
 
@@ -185,6 +204,32 @@ window.TTS = (() => {
     return range;
   }
 
+  function pickKaraokeUnit(timings, lens, elapsed, duration, units = []) {
+    // 精确路径：数量、句子文本、时间单调性和音频范围都一致时才信任 Edge 边界。
+    const exact = timings?.length === lens.length && units.length === lens.length && timings.every((timing, i) =>
+      normText(timing.text) === normText(units[i])
+      && timing.offset <= duration + .25
+      && (i === 0 || timing.offset > timings[i - 1].offset)
+    );
+    if (exact) {
+      let pick = 0;
+      for (let u = 1; u < timings.length; u++) {
+        if (elapsed < timings[u].offset) break;
+        pick = u;
+      }
+      return pick;
+    }
+    // 兼容旧服务端或边界缺失的响应，才退回字符占比估算。
+    const total = lens.reduce((sum, n) => sum + n, 0);
+    const target = Math.min(1, Math.max(0, elapsed / Math.max(duration, .001))) * total;
+    let acc = 0;
+    for (let u = 0; u < lens.length; u++) {
+      acc += lens[u];
+      if (target <= acc) return u;
+    }
+    return Math.max(0, lens.length - 1);
+  }
+
   function updateKaraoke() {
     const j = job;
     if (!j || j.state !== 'playing' || !j.domIndex) return;
@@ -193,32 +238,55 @@ window.TTS = (() => {
     const x = j.timeline.find(t => t.generation === j.generation && now >= t.start && now < t.end);
     if (!x) return;
     const index = x.index;
-    const within = Math.min(1, Math.max(0, (x.offset + now - x.start) / x.duration));
+    const elapsed = x.offset + now - x.start;
+    const within = Math.min(1, Math.max(0, elapsed / x.duration));
     const lens = j.unitLens[index];
     if (!lens || !lens.length) return;
-    let acc = 0, pick = lens.length - 1;
-    for (let u = 0; u < lens.length; u++) {
-      acc += lens[u];
-      if (within * j.unitTotals[index] <= acc) { pick = u; break; }
-    }
+    const units = j.chunks[index].split('\n').filter(Boolean);
+    const pick = pickKaraokeUnit(j.sentenceTimings[index], lens, elapsed, x.duration, units);
     const key = `${index}:${pick}`;
     if (key === karaokeKey) return;
     // 先映射句子；含公式/表格占位等映射不上时，退回整段范围（至少跟到段）
-    const range = unitRange(j, j.chunks[index].split('\n')[pick]) || findChunkRange(j.rootEl, j.chunks[index], within);
+    const range = unitRange(j, units[pick]) || findChunkRange(j.rootEl, j.chunks[index], within);
     if (!range) { karaokeKey = ''; return; } // 本帧没找到：清空 key，下一帧重试
     karaokeKey = key;
     try {
       if (window.CSS?.highlights && window.Highlight) {
         window.CSS.highlights.set('tts-read', new window.Highlight(range));
-        range.startContainer.parentElement?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
       }
     } catch {}
+    scrollRangeToReadingPosition(range);
   }
 
   // ---------- 合成与播放 ----------
+  function decodeSpeechResponse(packet, contentType) {
+    const mediaType = String(contentType || '').split(';', 1)[0].trim().toLowerCase();
+    if (mediaType !== ENVELOPE_TYPE) {
+      return { audio: packet, sentenceTimings: [] }; // 旧后端或未协商信封格式
+    }
+    if (!(packet instanceof ArrayBuffer) || packet.byteLength < 4) throw new Error('语音响应格式损坏');
+    const metadataLength = new DataView(packet, 0, 4).getUint32(0, false);
+    if (metadataLength > packet.byteLength - 4) throw new Error('语音响应格式损坏');
+    let metadata;
+    try {
+      metadata = JSON.parse(new TextDecoder().decode(packet.slice(4, 4 + metadataLength)));
+    } catch {
+      throw new Error('语音时间信息解析失败');
+    }
+    if (!metadata || typeof metadata !== 'object' || !Array.isArray(metadata.sentences)) {
+      throw new Error('语音时间信息格式损坏');
+    }
+    const sentenceTimings = metadata.sentences.map(pair => ({
+      offset: Number(pair?.[0]) / 10_000_000,
+      duration: Number(pair?.[1]) / 10_000_000,
+      text: String(pair?.[2] || ''),
+    })).filter(x => Number.isFinite(x.offset) && Number.isFinite(x.duration) && x.offset >= 0 && x.duration >= 0);
+    return { audio: packet.slice(4 + metadataLength), sentenceTimings };
+  }
+
   async function fetchSynth(text) {
     const r = await fetch('/api/tts', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: ENVELOPE_TYPE },
       body: JSON.stringify({ text, voice: settings.voice, rate: settings.rate }),
     });
     if (!r.ok) {
@@ -226,14 +294,15 @@ window.TTS = (() => {
       try { msg = (await r.json()).error || msg; } catch {}
       throw new Error(msg);
     }
-    return r.arrayBuffer();
+    return decodeSpeechResponse(await r.arrayBuffer(), r.headers.get('Content-Type'));
   }
 
   function ensureBuffer(j, i) {
     if (!j.buffers[i]) {
       j.buffers[i] = fetchSynth(j.chunks[i])
-        .then(ab => ac.decodeAudioData(ab))
-        .then(buf => {
+        .then(async ({ audio, sentenceTimings }) => {
+          const buf = await ac.decodeAudioData(audio);
+          j.sentenceTimings[i] = sentenceTimings;
           j.durations[i] = buf.duration;
           j.ready[i] = true;
           return buf;
@@ -336,13 +405,12 @@ window.TTS = (() => {
     for (const w of weights) prefixWeights.push(prefixWeights[prefixWeights.length - 1] + w);
     // 每段按 chunk 组装时的 '\n' 切回句子单元，记录各句归一化长度（供逐句高亮推算）
     const unitLens = chunks.map(c => c.split('\n').filter(Boolean).map(u => Math.max(1, normText(u).length)));
-    const unitTotals = unitLens.map(a => a.reduce((x, y) => x + y, 0));
     job = {
       chunks, rootEl, weights, prefixWeights, totalWeight: prefixWeights.at(-1),
-      buffers: [], durations: [], ready: [], sources: new Set(), timeline: [],
+      buffers: [], durations: [], ready: [], sentenceTimings: [], sources: new Set(), timeline: [],
       cancelled: false, state: 'loading', audible: 0, total: chunks.length,
       generation: 1, progress: 0, seekWaiting: false,
-      unitLens, unitTotals, domIndex: buildDomIndex(rootEl), onEnded,
+      unitLens, domIndex: buildDomIndex(rootEl), onEnded,
     };
     updateUI();
     startProgressLoop();
@@ -510,5 +578,14 @@ window.TTS = (() => {
     localStorage.setItem(LS_KEY, JSON.stringify(settings));
   }
 
-  return { bindLesson, stop, start, togglePause, preview, getSettings, saveSettings, VOICES, RATES, isActive: () => !!job };
+  return {
+    bindLesson, stop, start, togglePause, preview, getSettings, saveSettings, VOICES, RATES,
+    isActive: () => !!job,
+    ...(window.__LEARNORNOT_TEST__ ? {
+      _pickKaraokeUnit: pickKaraokeUnit,
+      _readingScrollDelta: readingScrollDelta,
+      _decodeSpeechResponse: decodeSpeechResponse,
+      _envelopeType: ENVELOPE_TYPE,
+    } : {}),
+  };
 })();

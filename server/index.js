@@ -12,7 +12,7 @@ import { importFromDsh, chat } from './llm.js';
 import { generateOutline, generateLesson, gradeQuiz, gradeRetake, askQuestion, chatWithTeacher, generateWeeklyReport, locateSource, summarizeChatSession } from './pipeline.js';
 import { exportToObsidian, obsidianStatus } from './exporter.js';
 import { companionStatus, companionChat, companionConfig, companionConfigured, LOCAL_PRESET } from './companion.js';
-import { synthesizeSpeech } from './tts.js';
+import { acceptsSpeechEnvelope, speechEnvelopeParts, synthesizeSpeech, TTS_ENVELOPE_TYPE } from './tts.js';
 import { oauthStatus, autoImportDshOAuth, reconcileOAuthProviders, startOAuthLogin, cancelOAuthLogin, logoutOAuth, importOAuthFromDsh } from './oauth.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -244,9 +244,21 @@ route('POST', '/api/tts', async (req, _p, body, _q, res) => {
   if (text.length > 4000) throw Object.assign(new Error('单段文本过长'), { code: 413 });
   const voice = /^[\w-]+$/.test(body.voice || '') ? body.voice : undefined;
   const rate = /^(default|[+-]?\d+%)$/.test(body.rate || '') ? body.rate : undefined;
-  const buf = await synthesizeSpeech(text, { voice, rate });
-  res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': buf.length, 'Cache-Control': 'no-store' });
-  res.end(buf);
+  const { audio, sentenceBoundaries } = await synthesizeSpeech(text, { voice, rate });
+  if (!acceptsSpeechEnvelope(req.headers.accept)) {
+    res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': audio.length, 'Cache-Control': 'no-store' });
+    res.end(audio);
+    return HANDLED;
+  }
+  const parts = speechEnvelopeParts(audio, sentenceBoundaries);
+  res.writeHead(200, {
+    'Content-Type': TTS_ENVELOPE_TYPE,
+    'Content-Length': parts.length,
+    'Cache-Control': 'no-store',
+  });
+  res.write(parts.header);
+  res.write(parts.metadata);
+  res.end(parts.audio);
   return HANDLED;
 });
 
