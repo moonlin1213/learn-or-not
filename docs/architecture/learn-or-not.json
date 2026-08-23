@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "LearnOrNot 运行时架构",
+    "output": "learn-or-not.html",
+    "quality_profile": "showcase",
+    "viewBox": [1760, 760],
+    "repository": {
+      "url": "https://github.com/moonlin1213/learn-or-not",
+      "revision": "9bb0954e2a8737c670798cceed4104ec45f680cc"
+    },
+    "views": [
+      {
+        "id": "main-learning-path",
+        "label": "主学习链路",
+        "focus": ["learner", "electron", "web-ui", "local-api", "learning-pipeline", "llm-router", "model-upstreams"],
+        "note": "从桌面交互进入本机 API，再由学习流水线和协议适配层调用模型。"
+      },
+      {
+        "id": "oauth-and-models",
+        "label": "OAuth 与模型路由",
+        "focus": ["web-ui", "local-api", "llm-router", "oauth-bridge", "model-upstreams"],
+        "note": "Codex 与 Grok 只导入本机登录态；普通 Provider 由统一 LLM 路由按协议调用。"
+      },
+      {
+        "id": "local-services",
+        "label": "本地数据与扩展",
+        "focus": ["local-api", "sqlite-store", "obsidian-vault", "companion-agent", "edge-tts"],
+        "note": "本机 SQLite 保存学习状态，API 还可连接陪伴 Agent、Edge TTS 与翰林院目录。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "learner",
+      "type": "external",
+      "label": "学习者",
+      "sublabel": "桌面交互",
+      "pos": [20, 310],
+      "size": [110, 64]
+    },
+    {
+      "id": "electron",
+      "type": "frontend",
+      "label": "Electron 主进程",
+      "sublabel": "单实例 · BrowserWindow",
+      "tag": "127.0.0.1:3210",
+      "pos": [180, 300],
+      "size": [160, 84],
+      "sources": [
+        { "path": "electron/main.cjs", "line": 70, "end_line": 80, "label": "内嵌后端启动" },
+        { "path": "electron/main.cjs", "line": 98, "end_line": 139, "label": "桌面窗口" }
+      ]
+    },
+    {
+      "id": "web-ui",
+      "type": "frontend",
+      "label": "Web 前端",
+      "sublabel": "Hash 路由 · fetch API",
+      "pos": [430, 300],
+      "size": [160, 84],
+      "sources": [
+        { "path": "public/app.js", "line": 9, "end_line": 20, "label": "API 客户端" },
+        { "path": "public/app.js", "line": 279, "end_line": 324, "label": "页面路由" }
+      ]
+    },
+    {
+      "id": "local-api",
+      "type": "backend",
+      "label": "本机 HTTP 服务",
+      "sublabel": "静态站点 + /api/*",
+      "tag": "loopback only",
+      "pos": [700, 300],
+      "size": [170, 84],
+      "sources": [
+        { "path": "server/index.js", "line": 137, "end_line": 145, "label": "路由注册" },
+        { "path": "server/index.js", "line": 839, "end_line": 877, "label": "HTTP 服务" }
+      ]
+    },
+    {
+      "id": "learning-pipeline",
+      "type": "backend",
+      "label": "学习流水线",
+      "sublabel": "大纲 · 课程 · 测验 · 私教",
+      "pos": [970, 300],
+      "size": [170, 84],
+      "sources": [
+        { "path": "server/pipeline.js", "line": 39, "label": "生成大纲" },
+        { "path": "server/pipeline.js", "line": 96, "label": "生成课程" },
+        { "path": "server/pipeline.js", "line": 349, "end_line": 412, "label": "私教对话" }
+      ]
+    },
+    {
+      "id": "llm-router",
+      "type": "backend",
+      "label": "LLM 协议适配层",
+      "sublabel": "Completions · Responses · Anthropic",
+      "pos": [1240, 300],
+      "size": [190, 84],
+      "sources": [
+        { "path": "server/llm.js", "line": 78, "end_line": 127, "label": "非流式路由" },
+        { "path": "server/llm.js", "line": 132, "end_line": 180, "label": "流式路由" }
+      ]
+    },
+    {
+      "id": "model-upstreams",
+      "type": "cloud",
+      "label": "模型与订阅端点",
+      "sublabel": "自定义 API · Codex · Grok",
+      "pos": [1540, 300],
+      "size": [170, 84],
+      "sources": [
+        { "path": "server/llm.js", "line": 83, "end_line": 124, "label": "远程协议调用" },
+        { "path": "server/oauth.js", "line": 26, "end_line": 35, "label": "订阅平台" }
+      ]
+    },
+    {
+      "id": "oauth-bridge",
+      "type": "security",
+      "label": "OAuth 凭据桥",
+      "sublabel": "DSH 登录态 → 本地凭据库",
+      "tag": "Codex / Grok",
+      "pos": [700, 80],
+      "size": [190, 88],
+      "sources": [
+        { "path": "server/oauth.js", "line": 185, "end_line": 230, "label": "导入与对账" },
+        { "path": "server/oauth-store.js", "line": 20, "end_line": 56, "label": "原子凭据存储" }
+      ]
+    },
+    {
+      "id": "sqlite-store",
+      "type": "database",
+      "label": "SQLite 数据库",
+      "sublabel": "课程 · 进度 · Provider · 会话",
+      "tag": "learnloop.db",
+      "pos": [700, 530],
+      "size": [170, 84],
+      "sources": [
+        { "path": "server/db.js", "line": 1, "end_line": 12, "label": "数据库初始化" },
+        { "path": "server/db.js", "line": 241, "end_line": 266, "label": "数据访问层" }
+      ]
+    },
+    {
+      "id": "obsidian-vault",
+      "type": "database",
+      "label": "翰林院目录",
+      "sublabel": "Obsidian Markdown Vault",
+      "pos": [970, 530],
+      "size": [170, 84],
+      "sources": [
+        { "path": "server/exporter.js", "line": 7, "end_line": 12, "label": "导出目录" },
+        { "path": "server/exporter.js", "line": 36, "end_line": 140, "label": "Markdown 导出" }
+      ]
+    },
+    {
+      "id": "companion-agent",
+      "type": "external",
+      "label": "本地陪伴 Agent",
+      "sublabel": "本机自托管服务 · SSE",
+      "tag": "127.0.0.1:8081",
+      "pos": [1240, 530],
+      "size": [190, 84],
+      "sources": [
+        { "path": "server/companion.js", "line": 16, "end_line": 22, "label": "本地预设" },
+        { "path": "server/companion.js", "line": 71, "end_line": 110, "label": "SSE 对话" }
+      ]
+    },
+    {
+      "id": "edge-tts",
+      "type": "external",
+      "label": "Edge TTS",
+      "sublabel": "WebSocket 语音合成",
+      "pos": [1540, 530],
+      "size": [170, 84],
+      "sources": [
+        { "path": "server/tts.js", "line": 9, "label": "语音端点" },
+        { "path": "server/tts.js", "line": 89, "end_line": 106, "label": "缓存与重试" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "LearnOrNot 桌面应用 · 本机进程与数据",
+      "wraps": ["electron", "web-ui", "local-api", "learning-pipeline", "llm-router", "oauth-bridge", "sqlite-store"]
+    }
+  ],
+  "connections": [
+    { "id": "learner-electron", "from": "learner", "to": "electron", "label": "桌面操作", "variant": "emphasis" },
+    { "id": "electron-web", "from": "electron", "to": "web-ui", "label": "加载页面", "variant": "emphasis" },
+    { "id": "web-api", "from": "web-ui", "to": "local-api", "label": "fetch /api/*", "variant": "emphasis" },
+    { "id": "api-pipeline", "from": "local-api", "to": "learning-pipeline", "label": "学习任务", "variant": "emphasis" },
+    { "id": "pipeline-llm", "from": "learning-pipeline", "to": "llm-router", "label": "Prompt / SSE", "variant": "emphasis" },
+    { "id": "llm-upstream", "from": "llm-router", "to": "model-upstreams", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "api-db", "from": "local-api", "to": "sqlite-store", "label": "SQL", "fromSide": "bottom", "toSide": "top", "labelAt": [785, 455] },
+    { "id": "api-obsidian", "from": "local-api", "to": "obsidian-vault", "label": "Markdown", "variant": "dashed", "fromSide": "bottom", "toSide": "left", "via": [[785, 430], [920, 430], [920, 572]], "labelAt": [850, 420] },
+    { "id": "api-companion", "from": "local-api", "to": "companion-agent", "label": "POST + SSE", "variant": "dashed", "fromSide": "right", "toSide": "left", "via": [[900, 342], [900, 460], [1190, 460], [1190, 572]], "labelAt": [1080, 450] },
+    { "id": "api-tts", "from": "local-api", "to": "edge-tts", "label": "WebSocket 语音", "variant": "dashed", "fromSide": "left", "toSide": "left", "via": [[650, 342], [650, 500], [1490, 500], [1490, 572]], "labelAt": [1430, 490] },
+    { "id": "api-oauth", "from": "local-api", "to": "oauth-bridge", "label": "导入 / 对账", "variant": "security", "fromSide": "top", "toSide": "bottom", "labelAt": [785, 235] },
+    { "id": "oauth-llm", "from": "oauth-bridge", "to": "llm-router", "label": "OAuth Provider", "variant": "security", "fromSide": "right", "toSide": "top", "via": [[930, 124], [1335, 124], [1335, 250]], "labelAt": [1100, 114] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "桌面与 Web",
+      "items": [
+        "Electron 直接导入并托管 Node 后端，BrowserWindow 只加载 127.0.0.1:3210",
+        "Web 前端通过同源 /api/* 完成书架、课程、复习、设置与聊天交互"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "模型与 OAuth",
+      "items": [
+        "统一适配 OpenAI Completions、Responses、Anthropic Messages 与 OAuth 订阅模型",
+        "Codex / Grok 不从应用发起官网授权，只导入本机 DSH 登录态并写入 0600 凭据文件"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "本地数据与服务",
+      "items": [
+        "SQLite 保存课程、进度、Provider 和聊天；教材原文与上传文件位于数据目录",
+        "可选连接本地陪伴 Agent、导出 Obsidian 翰林院，并调用 Edge TTS 合成朗读音频"
+      ]
+    }
+  ]
+}
