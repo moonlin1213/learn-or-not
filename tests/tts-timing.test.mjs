@@ -37,14 +37,14 @@ test('Edge sentence metadata is retained as compact audio tick ranges', () => {
     '',
     JSON.stringify({ Metadata: [
       { Type: 'WordBoundary', Data: { Offset: 1_000_000, Duration: 2_000_000 } },
-      { Type: 'SentenceBoundary', Data: { Offset: 1_000_000, Duration: 14_375_000 } },
-      { Type: 'SentenceBoundary', Data: { Offset: 15_375_000, Duration: 75_875_000 } },
+      { Type: 'SentenceBoundary', Data: { Offset: 1_000_000, Duration: 14_375_000, text: { Text: '第一句。' } } },
+      { Type: 'SentenceBoundary', Data: { Offset: 15_375_000, Duration: 75_875_000, text: { Text: '第二句。' } } },
     ] }),
   ].join('\r\n');
 
   assert.deepEqual(parseSpeechMetadata(message), [
-    [1_000_000, 14_375_000],
-    [15_375_000, 75_875_000],
+    [1_000_000, 14_375_000, '第一句。'],
+    [15_375_000, 75_875_000, '第二句。'],
   ]);
 });
 
@@ -63,6 +63,8 @@ test('TTS envelope is opt-in so old clients continue receiving raw MP3', () => {
   assert.equal(tts._envelopeType, TTS_ENVELOPE_TYPE);
   assert.equal(acceptsSpeechEnvelope(TTS_ENVELOPE_TYPE), true);
   assert.equal(acceptsSpeechEnvelope(`${TTS_ENVELOPE_TYPE}; q=1, audio/mpeg; q=.5`), true);
+  assert.equal(acceptsSpeechEnvelope('Application/Vnd.LearnOrNot.Tts; Q=.8'), true);
+  assert.equal(acceptsSpeechEnvelope(`${TTS_ENVELOPE_TYPE}; q=0, audio/mpeg`), false);
   assert.equal(acceptsSpeechEnvelope('*/*'), false);
   assert.equal(acceptsSpeechEnvelope('audio/mpeg'), false);
 });
@@ -71,14 +73,14 @@ test('browser decoder reads valid envelopes and keeps legacy audio responses wor
   const tts = loadTtsForTest();
   const audio = Buffer.from([0x49, 0x44, 0x33, 1, 2, 3]);
   const packet = packSpeechResponse(audio, [
-    [1_000_000, 14_375_000],
-    [-1, 2_000_000],
-    ['bad', 2_000_000],
+    [1_000_000, 14_375_000, '第一句。'],
+    [-1, 2_000_000, 'invalid'],
+    ['bad', 2_000_000, 'invalid'],
   ]);
-  const decoded = tts._decodeSpeechResponse(toArrayBuffer(packet), TTS_ENVELOPE_TYPE);
+  const decoded = tts._decodeSpeechResponse(toArrayBuffer(packet), 'Application/Vnd.LearnOrNot.Tts; charset=binary');
 
   assert.deepEqual(Array.from(new Uint8Array(decoded.audio)), Array.from(audio));
-  assert.deepEqual(JSON.parse(JSON.stringify(decoded.sentenceTimings)), [{ offset: 0.1, duration: 1.4375 }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(decoded.sentenceTimings)), [{ offset: 0.1, duration: 1.4375, text: '第一句。' }]);
 
   const legacy = toArrayBuffer(audio);
   const legacyDecoded = tts._decodeSpeechResponse(legacy, 'audio/mpeg');
@@ -98,28 +100,40 @@ test('browser decoder rejects truncated or malformed envelopes', () => {
   malformed.writeUInt32BE(3, 0);
   malformed.write('no!', 4);
   assert.throws(() => decode(toArrayBuffer(malformed), TTS_ENVELOPE_TYPE), /语音时间信息解析失败/);
+
+  for (const metadata of [null, { sentences: {} }]) {
+    const json = Buffer.from(JSON.stringify(metadata));
+    const packet = Buffer.alloc(4 + json.length);
+    packet.writeUInt32BE(json.length, 0);
+    json.copy(packet, 4);
+    assert.throws(() => decode(toArrayBuffer(packet), TTS_ENVELOPE_TYPE), /语音时间信息格式损坏/);
+  }
 });
 
 test('karaoke sentence selection follows real audio boundaries instead of character ratio', () => {
   const pick = loadTtsForTest()._pickKaraokeUnit;
 
   assert.equal(typeof pick, 'function');
+  const units = ['第一句很短。', '第二句包含 English、数字 12345。', '第三句收尾。'];
   const timings = [
-    { offset: 0.1, duration: 1.4375 },
-    { offset: 1.5375, duration: 7.5875 },
-    { offset: 9.125, duration: 1.8625 },
+    { offset: 0.1, duration: 1.4375, text: units[0] },
+    { offset: 1.5375, duration: 7.5875, text: units[1] },
+    { offset: 9.125, duration: 1.8625, text: units[2] },
   ];
-  const lens = [6, 45, 6];
+  const lens = units.map(x => x.replace(/\s/g, '').length);
 
   // Character-ratio estimation has already crossed into sentence 2 here,
-  // while the audio boundary says sentence 1 is still being spoken.
-  assert.equal(pick(timings, lens, 1.2, 10.9875), 0);
-  assert.equal(pick(timings, lens, 1.6, 10.9875), 1);
-  assert.equal(pick(timings, lens, 9.2, 10.9875), 2);
+  // while the verified audio boundary says sentence 1 is still being spoken.
+  assert.equal(pick(timings, lens, 1.2, 10.9875, units), 0);
+  assert.equal(pick(timings, lens, 1.6, 10.9875, units), 1);
+  assert.equal(pick(timings, lens, 9.2, 10.9875, units), 2);
 
-  assert.equal(pick([], lens, -1, 0), 0);
-  assert.equal(pick(undefined, lens, 999, 0), 2);
-  assert.equal(pick(timings.slice(0, 2), lens, 5, 10), 1);
+  assert.equal(pick([], lens, -1, 0, units), 0);
+  assert.equal(pick(undefined, lens, 999, 0, units), 2);
+  assert.equal(pick(timings.slice(0, 2), lens, 5, 10, units), 1);
+  assert.equal(pick(timings.map((t, i) => ({ ...t, text: `错句${i}` })), lens, 5, 10.9875, units), 1);
+  assert.equal(pick([timings[0], { ...timings[1], offset: 0.1 }, timings[2]], lens, 5, 10.9875, units), 1);
+  assert.equal(pick([timings[0], timings[1], { ...timings[2], offset: 99 }], lens, 5, 10.9875, units), 1);
 });
 
 test('karaoke scroll target leaves about three text lines below the sticky player', () => {

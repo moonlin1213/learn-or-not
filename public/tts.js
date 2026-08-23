@@ -204,9 +204,14 @@ window.TTS = (() => {
     return range;
   }
 
-  function pickKaraokeUnit(timings, lens, elapsed, duration) {
-    // 精确路径：Edge 给出的句首音频时间。高亮只在下一句真正开口时推进。
-    if (timings?.length === lens.length) {
+  function pickKaraokeUnit(timings, lens, elapsed, duration, units = []) {
+    // 精确路径：数量、句子文本、时间单调性和音频范围都一致时才信任 Edge 边界。
+    const exact = timings?.length === lens.length && units.length === lens.length && timings.every((timing, i) =>
+      normText(timing.text) === normText(units[i])
+      && timing.offset <= duration + .25
+      && (i === 0 || timing.offset > timings[i - 1].offset)
+    );
+    if (exact) {
       let pick = 0;
       for (let u = 1; u < timings.length; u++) {
         if (elapsed < timings[u].offset) break;
@@ -237,11 +242,12 @@ window.TTS = (() => {
     const within = Math.min(1, Math.max(0, elapsed / x.duration));
     const lens = j.unitLens[index];
     if (!lens || !lens.length) return;
-    const pick = pickKaraokeUnit(j.sentenceTimings[index], lens, elapsed, x.duration);
+    const units = j.chunks[index].split('\n').filter(Boolean);
+    const pick = pickKaraokeUnit(j.sentenceTimings[index], lens, elapsed, x.duration, units);
     const key = `${index}:${pick}`;
     if (key === karaokeKey) return;
     // 先映射句子；含公式/表格占位等映射不上时，退回整段范围（至少跟到段）
-    const range = unitRange(j, j.chunks[index].split('\n')[pick]) || findChunkRange(j.rootEl, j.chunks[index], within);
+    const range = unitRange(j, units[pick]) || findChunkRange(j.rootEl, j.chunks[index], within);
     if (!range) { karaokeKey = ''; return; } // 本帧没找到：清空 key，下一帧重试
     karaokeKey = key;
     try {
@@ -254,7 +260,8 @@ window.TTS = (() => {
 
   // ---------- 合成与播放 ----------
   function decodeSpeechResponse(packet, contentType) {
-    if (!String(contentType || '').includes(ENVELOPE_TYPE)) {
+    const mediaType = String(contentType || '').split(';', 1)[0].trim().toLowerCase();
+    if (mediaType !== ENVELOPE_TYPE) {
       return { audio: packet, sentenceTimings: [] }; // 旧后端或未协商信封格式
     }
     if (!(packet instanceof ArrayBuffer) || packet.byteLength < 4) throw new Error('语音响应格式损坏');
@@ -266,9 +273,13 @@ window.TTS = (() => {
     } catch {
       throw new Error('语音时间信息解析失败');
     }
-    const sentenceTimings = (metadata.sentences || []).map(pair => ({
+    if (!metadata || typeof metadata !== 'object' || !Array.isArray(metadata.sentences)) {
+      throw new Error('语音时间信息格式损坏');
+    }
+    const sentenceTimings = metadata.sentences.map(pair => ({
       offset: Number(pair?.[0]) / 10_000_000,
       duration: Number(pair?.[1]) / 10_000_000,
+      text: String(pair?.[2] || ''),
     })).filter(x => Number.isFinite(x.offset) && Number.isFinite(x.duration) && x.offset >= 0 && x.duration >= 0);
     return { audio: packet.slice(4 + metadataLength), sentenceTimings };
   }

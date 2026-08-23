@@ -20,7 +20,7 @@ function xmlEscape(s) {
 }
 
 // Edge 在 audio.metadata 文本帧里给出 100ns tick 精度的边界。
-// 朗读器只做句级高亮，因此丢弃词边界并压成 [offset, duration]，避免传输冗余。
+// 朗读器只做句级高亮，因此丢弃词边界并压成 [offset, duration, text]，供前端核对分句身份。
 export function parseSpeechMetadata(message) {
   if (typeof message !== 'string' || !message.includes('Path:audio.metadata')) return [];
   const split = message.indexOf(CRLF + CRLF);
@@ -29,7 +29,7 @@ export function parseSpeechMetadata(message) {
     const payload = JSON.parse(message.slice(split + 4));
     return (payload.Metadata || [])
       .filter(item => item?.Type === 'SentenceBoundary')
-      .map(item => [Number(item.Data?.Offset), Number(item.Data?.Duration)])
+      .map(item => [Number(item.Data?.Offset), Number(item.Data?.Duration), String(item.Data?.text?.Text || '')])
       .filter(([offset, duration]) => Number.isFinite(offset) && Number.isFinite(duration) && offset >= 0 && duration >= 0);
   } catch {
     return [];
@@ -39,7 +39,14 @@ export function parseSpeechMetadata(message) {
 export const TTS_ENVELOPE_TYPE = 'application/vnd.learnornot.tts';
 
 export function acceptsSpeechEnvelope(acceptHeader) {
-  return String(acceptHeader || '').split(',').some(part => part.trim().split(';', 1)[0].toLowerCase() === TTS_ENVELOPE_TYPE);
+  return String(acceptHeader || '').split(',').some(part => {
+    const [mediaType, ...params] = part.trim().split(';');
+    if (mediaType.toLowerCase() !== TTS_ENVELOPE_TYPE) return false;
+    const qParam = params.map(p => p.trim()).find(p => /^q=/i.test(p));
+    if (!qParam) return true;
+    const quality = Number(qParam.slice(qParam.indexOf('=') + 1));
+    return Number.isFinite(quality) && quality > 0;
+  });
 }
 
 // 自描述二进制包：4 字节大端 JSON 长度 + timing JSON + 原始 MP3。
