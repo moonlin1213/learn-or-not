@@ -82,19 +82,19 @@ npm start          # 打开 http://127.0.0.1:3210
 npm run dist       # 产出未签名的 macOS 应用到 dist/（electron-builder --mac --dir）
 ```
 
-第一次使用：到「设置」连接订阅账户，或手动添加一个 provider，然后回书架上传第一本教材。
+第一次使用：到「设置」导入本机已有的 Codex / Grok 登录态，或手动添加一个 provider，然后回书架上传第一本教材。
 
 ## 模型配置（云端老师）
 
 ### Codex / Grok 订阅 OAuth
 
-设置页「订阅账户」可以直接连接：
+设置页「订阅账户」只导入本机已有的 DSH 登录态，不会从 LearnOrNot 打开 ChatGPT、Codex、Grok 或 X 的官网授权页：
 
-- **Codex**：使用 ChatGPT Plus / Pro 订阅，通过 OpenAI 官方 OAuth 登录。
-- **Grok**：使用 SuperGrok / X Premium 订阅，通过 xAI 官方设备码登录。
-- 已安装 DSH Everything OAuth 且本机已登录 Codex / Grok 时，启动和打开设置页会自动复用这份 OAuth 登录态，无需在「学不学」里重复授权；仅当本机没有可用登录态时才会走官方设备码登录。
+- **Codex**：导入本机已有的 ChatGPT Plus / Pro 登录态。
+- **Grok**：导入本机已有的 SuperGrok / X Premium 登录态。
+- 只有 DSH 凭据文件中确实存在对应平台的登录态时，设置页才会显示「导入本机登录态」。
 
-访问令牌保存在数据目录的 `oauth-credentials.json`：文件权限固定为 `0600`，与 SQLite 学习数据库分离，不会进入 LearnOrNot 学习备份或 provider 接口响应。刷新、并发锁与 Codex 专用 Responses 协议由 `@earendil-works/pi-ai` 统一处理。「断开连接」会删除本机凭据；如需立即撤销仍在有效期内的服务端授权，请同时到对应账户的安全设置里撤销该应用。
+访问令牌保存在数据目录的 `oauth-credentials.json`：文件权限固定为 `0600`，与 SQLite 学习数据库分离，不会进入 LearnOrNot 学习备份或 provider 接口响应。刷新、并发锁与 Codex 专用 Responses 协议由 `@earendil-works/pi-ai` 统一处理。「断开连接」会删除 LearnOrNot 的本机凭据，并保持断开状态，直到你再次显式导入。
 
 ### API Key provider
 
@@ -152,7 +152,15 @@ POST {地址}{聊天路径}  {content, model_content}  → SSE 流：data: {"typ
 { "proxy": "http://127.0.0.1:7897", "dataDir": "/abs/path/to/data" }
 ```
 
-## 架构速览
+## 系统架构
+
+LearnOrNot 由 Electron 桌面壳、零构建 Web 前端、本机 Node HTTP 服务、学习流水线、可切换的 LLM 协议适配层，以及本地优先的数据与扩展服务组成。
+
+[![LearnOrNot 系统架构](docs/assets/learn-or-not-architecture.png)](https://moonlin1213.github.io/learn-or-not/architecture/learn-or-not.html)
+
+> 点击图片打开可交互架构图，可切换深浅主题、检索组件、聚焦子系统并追踪调用路径。可维护的 Archify 源文件位于 [`docs/architecture/learn-or-not.json`](docs/architecture/learn-or-not.json)。
+
+### 目录速览
 
 ```
 server/    node:http 零框架 API + node:sqlite + busboy 上传
