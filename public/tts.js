@@ -120,6 +120,24 @@ window.TTS = (() => {
     return null;
   }
 
+  function readingScrollDelta({ rangeTop, stickyBottom, viewportHeight, lineHeight }) {
+    // 播放条下方保留约三行上下文，让高亮句落在第 3～4 行，而不是贴着遮挡边缘。
+    const target = Math.min(stickyBottom + lineHeight * 3.5, viewportHeight - lineHeight * 4);
+    return Math.round(rangeTop - Math.max(stickyBottom + lineHeight, target));
+  }
+
+  function scrollRangeToReadingPosition(range, behavior = 'smooth') {
+    const rect = range?.getBoundingClientRect?.();
+    if (!rect || !Number.isFinite(rect.top)) return;
+    const stickyBottom = Math.max(0, document.querySelector('.lesson-sticky')?.getBoundingClientRect?.().bottom || 0);
+    const startEl = range.startContainer?.parentElement;
+    const computedLineHeight = Number.parseFloat(startEl ? getComputedStyle(startEl).lineHeight : '');
+    const lineHeight = Number.isFinite(computedLineHeight) ? computedLineHeight : 32;
+    const delta = readingScrollDelta({ rangeTop: rect.top, stickyBottom, viewportHeight: window.innerHeight, lineHeight });
+    if (Math.abs(delta) < 2) return;
+    window.scrollBy({ top: delta, behavior });
+  }
+
   function revealChunkPosition(j, index, within) {
     clearLocator();
     const range = findChunkRange(j.rootEl, j.chunks[index], within);
@@ -131,13 +149,13 @@ window.TTS = (() => {
         window.CSS.highlights.set('tts-seek', new window.Highlight(range));
       }
     } catch {}
-    locatorBlock?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    scrollRangeToReadingPosition(range);
     requestAnimationFrame(() => locatorBlock?.classList.add('tts-locate-flash'));
     locatorTimer = setTimeout(clearLocator, 2400);
   }
 
   // ---------- 逐句跟读高亮 ----------
-  // 朗读到哪一句，就把那句淡淡地铺一层底色并滚到视野中央（卡拉OK跟读）。
+  // 朗读到哪一句，就把那句淡淡地铺一层底色并稳定在播放条下方第 3～4 行（卡拉OK跟读）。
   // 优先使用 Edge 随音频返回的句首时间戳；旧服务端或异常缺失时才按字符占比兜底。
   // DOM 映射用 job 级缓存的归一化索引，每帧只做查表。
   let karaokeKey = '';   // 'chunk:unit'，句没变不重绘
@@ -228,9 +246,9 @@ window.TTS = (() => {
     try {
       if (window.CSS?.highlights && window.Highlight) {
         window.CSS.highlights.set('tts-read', new window.Highlight(range));
-        range.startContainer.parentElement?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
       }
     } catch {}
+    scrollRangeToReadingPosition(range);
   }
 
   // ---------- 合成与播放 ----------
@@ -548,6 +566,9 @@ window.TTS = (() => {
   return {
     bindLesson, stop, start, togglePause, preview, getSettings, saveSettings, VOICES, RATES,
     isActive: () => !!job,
-    ...(window.__LEARNORNOT_TEST__ ? { _pickKaraokeUnit: pickKaraokeUnit } : {}),
+    ...(window.__LEARNORNOT_TEST__ ? {
+      _pickKaraokeUnit: pickKaraokeUnit,
+      _readingScrollDelta: readingScrollDelta,
+    } : {}),
   };
 })();

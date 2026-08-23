@@ -47,7 +47,8 @@ test('lesson TTS exposes a styled progress control with real audio seeking', () 
   assert.match(ttsJs, /progress\.addEventListener\('change',[\s\S]*?seekTo\(Number\(progress\.value\) \/ 1000\)/);
   assert.match(ttsJs, /revealChunkPosition\(j, index, within\)/);
   assert.match(ttsJs, /CSS\.highlights\.set\('tts-seek'/);
-  assert.match(ttsJs, /scrollIntoView\(\{ behavior: 'smooth', block: 'center' \}\)/);
+  assert.match(ttsJs, /scrollRangeToReadingPosition\(range\)/);
+  assert.match(ttsJs, /window\.scrollBy\(\{ top: delta, behavior \}\)/);
   assert.match(css, /::highlight\(tts-seek\)/);
   assert.match(css, /--tts-accent:\s*#A07C45/);
   assert.match(ttsJs, /function warmBuffers\(j\)/);

@@ -58,3 +58,20 @@ test('karaoke sentence selection follows real audio boundaries instead of charac
   assert.equal(pick(timings, lens, 1.6, 10.9875), 1);
   assert.equal(pick(timings, lens, 9.2, 10.9875), 2);
 });
+
+test('karaoke scroll target leaves about three text lines below the sticky player', () => {
+  const source = fs.readFileSync(new URL('../public/tts.js', import.meta.url), 'utf8');
+  const context = {
+    window: { __LEARNORNOT_TEST__: true },
+    localStorage: { getItem: () => null, setItem: () => {} },
+    console,
+  };
+  vm.runInNewContext(source, context);
+  const delta = context.window.TTS._readingScrollDelta;
+
+  assert.equal(typeof delta, 'function');
+  // Sticky controls end at y=160. With a 32px line height, the highlighted
+  // sentence should land at y=272, around the fourth visible text line.
+  assert.equal(delta({ rangeTop: 200, stickyBottom: 160, viewportHeight: 800, lineHeight: 32 }), -72);
+  assert.equal(delta({ rangeTop: 520, stickyBottom: 160, viewportHeight: 800, lineHeight: 32 }), 248);
+});
