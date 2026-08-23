@@ -3,6 +3,7 @@
 // 设置持久化在 localStorage「learnloop.tts」。
 window.TTS = (() => {
   const LS_KEY = 'learnloop.tts';
+  const ENVELOPE_TYPE = 'application/vnd.learnornot.tts';
   const VOICES = [
     { id: 'zh-CN-YunxiNeural', name: '云希 · 男声清亮（讲课感）' },
     { id: 'zh-CN-XiaoxuanNeural', name: '晓萱 · 女声温柔' },
@@ -252,21 +253,11 @@ window.TTS = (() => {
   }
 
   // ---------- 合成与播放 ----------
-  async function fetchSynth(text) {
-    const r = await fetch('/api/tts', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, voice: settings.voice, rate: settings.rate }),
-    });
-    if (!r.ok) {
-      let msg = '语音合成失败';
-      try { msg = (await r.json()).error || msg; } catch {}
-      throw new Error(msg);
+  function decodeSpeechResponse(packet, contentType) {
+    if (!String(contentType || '').includes(ENVELOPE_TYPE)) {
+      return { audio: packet, sentenceTimings: [] }; // 旧后端或未协商信封格式
     }
-    const packet = await r.arrayBuffer();
-    if (!r.headers.get('Content-Type')?.includes('application/vnd.learnornot.tts')) {
-      return { audio: packet, sentenceTimings: [] }; // 兼容热更新期间仍在运行的旧后端
-    }
-    if (packet.byteLength < 4) throw new Error('语音响应格式损坏');
+    if (!(packet instanceof ArrayBuffer) || packet.byteLength < 4) throw new Error('语音响应格式损坏');
     const metadataLength = new DataView(packet, 0, 4).getUint32(0, false);
     if (metadataLength > packet.byteLength - 4) throw new Error('语音响应格式损坏');
     let metadata;
@@ -280,6 +271,19 @@ window.TTS = (() => {
       duration: Number(pair?.[1]) / 10_000_000,
     })).filter(x => Number.isFinite(x.offset) && Number.isFinite(x.duration) && x.offset >= 0 && x.duration >= 0);
     return { audio: packet.slice(4 + metadataLength), sentenceTimings };
+  }
+
+  async function fetchSynth(text) {
+    const r = await fetch('/api/tts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: ENVELOPE_TYPE },
+      body: JSON.stringify({ text, voice: settings.voice, rate: settings.rate }),
+    });
+    if (!r.ok) {
+      let msg = '语音合成失败';
+      try { msg = (await r.json()).error || msg; } catch {}
+      throw new Error(msg);
+    }
+    return decodeSpeechResponse(await r.arrayBuffer(), r.headers.get('Content-Type'));
   }
 
   function ensureBuffer(j, i) {
@@ -569,6 +573,8 @@ window.TTS = (() => {
     ...(window.__LEARNORNOT_TEST__ ? {
       _pickKaraokeUnit: pickKaraokeUnit,
       _readingScrollDelta: readingScrollDelta,
+      _decodeSpeechResponse: decodeSpeechResponse,
+      _envelopeType: ENVELOPE_TYPE,
     } : {}),
   };
 })();

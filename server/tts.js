@@ -36,13 +36,24 @@ export function parseSpeechMetadata(message) {
   }
 }
 
+export const TTS_ENVELOPE_TYPE = 'application/vnd.learnornot.tts';
+
+export function acceptsSpeechEnvelope(acceptHeader) {
+  return String(acceptHeader || '').split(',').some(part => part.trim().split(';', 1)[0].toLowerCase() === TTS_ENVELOPE_TYPE);
+}
+
 // 自描述二进制包：4 字节大端 JSON 长度 + timing JSON + 原始 MP3。
-// 比 base64 JSON 少 33% 音频体积，也不受 HTTP 响应头大小限制。
-export function packSpeechResponse(audio, sentenceBoundaries = []) {
+// 分开返回三段，HTTP 路由可逐段写出，避免为了封包再复制一遍整段 MP3。
+export function speechEnvelopeParts(audio, sentenceBoundaries = []) {
   const metadata = Buffer.from(JSON.stringify({ sentences: sentenceBoundaries }), 'utf8');
   const header = Buffer.allocUnsafe(4);
   header.writeUInt32BE(metadata.length, 0);
-  return Buffer.concat([header, metadata, audio]);
+  return { header, metadata, audio, length: header.length + metadata.length + audio.length };
+}
+
+export function packSpeechResponse(audio, sentenceBoundaries = []) {
+  const parts = speechEnvelopeParts(audio, sentenceBoundaries);
+  return Buffer.concat([parts.header, parts.metadata, parts.audio], parts.length);
 }
 
 function synthesizeOnce(text, { voice, rate, pitch, volume }) {
