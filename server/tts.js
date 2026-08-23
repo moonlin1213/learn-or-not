@@ -19,6 +19,32 @@ function xmlEscape(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
 
+// Edge 在 audio.metadata 文本帧里给出 100ns tick 精度的边界。
+// 朗读器只做句级高亮，因此丢弃词边界并压成 [offset, duration]，避免传输冗余。
+export function parseSpeechMetadata(message) {
+  if (typeof message !== 'string' || !message.includes('Path:audio.metadata')) return [];
+  const split = message.indexOf(CRLF + CRLF);
+  if (split < 0) return [];
+  try {
+    const payload = JSON.parse(message.slice(split + 4));
+    return (payload.Metadata || [])
+      .filter(item => item?.Type === 'SentenceBoundary')
+      .map(item => [Number(item.Data?.Offset), Number(item.Data?.Duration)])
+      .filter(([offset, duration]) => Number.isFinite(offset) && Number.isFinite(duration) && offset >= 0 && duration >= 0);
+  } catch {
+    return [];
+  }
+}
+
+// 自描述二进制包：4 字节大端 JSON 长度 + timing JSON + 原始 MP3。
+// 比 base64 JSON 少 33% 音频体积，也不受 HTTP 响应头大小限制。
+export function packSpeechResponse(audio, sentenceBoundaries = []) {
+  const metadata = Buffer.from(JSON.stringify({ sentences: sentenceBoundaries }), 'utf8');
+  const header = Buffer.allocUnsafe(4);
+  header.writeUInt32BE(metadata.length, 0);
+  return Buffer.concat([header, metadata, audio]);
+}
+
 function synthesizeOnce(text, { voice, rate, pitch, volume }) {
   return new Promise((resolve, reject) => {
     const url = `${WSS_BASE}?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}&Sec-MS-GEC=${secMsGecToken()}&Sec-MS-GEC-Version=1-${CHROMIUM_FULL_VERSION}`;
@@ -34,6 +60,7 @@ function synthesizeOnce(text, { voice, rate, pitch, volume }) {
     });
     ws.binaryType = 'arraybuffer';
     const chunks = [];
+    const sentenceBoundaries = [];
     let settled = false;
     const timer = setTimeout(() => {
       if (settled) return;
@@ -49,7 +76,7 @@ function synthesizeOnce(text, { voice, rate, pitch, volume }) {
       const buf = Buffer.concat(chunks);
       try { ws.close(); } catch {}
       if (buf.length < 100) return reject(new Error('合成结果为空'));
-      resolve(buf);
+      resolve({ audio: buf, sentenceBoundaries });
     };
 
     ws.onerror = () => { if (!settled) { settled = true; clearTimeout(timer); reject(new Error('语音服务连接失败')); } };
@@ -57,6 +84,7 @@ function synthesizeOnce(text, { voice, rate, pitch, volume }) {
     ws.onmessage = (event) => {
       if (settled) return;
       if (typeof event.data === 'string') {
+        sentenceBoundaries.push(...parseSpeechMetadata(event.data));
         if (event.data.includes('Path:turn.end')) finish();
         return;
       }
@@ -72,7 +100,7 @@ function synthesizeOnce(text, { voice, rate, pitch, volume }) {
     };
     ws.onopen = () => {
       const requestId = crypto.randomBytes(16).toString('hex');
-      const speechConfig = { context: { synthesis: { audio: { metadataoptions: { sentenceBoundaryEnabled: 'false', wordBoundaryEnabled: 'true' }, outputFormat: 'audio-24khz-48kbitrate-mono-mp3' } } } };
+      const speechConfig = { context: { synthesis: { audio: { metadataoptions: { sentenceBoundaryEnabled: 'true', wordBoundaryEnabled: 'false' }, outputFormat: 'audio-24khz-48kbitrate-mono-mp3' } } } };
       const vparts = String(voice).split('-');
       const lang = vparts.length >= 2 ? vparts[0] + '-' + vparts[1] : 'zh-CN';
       const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${lang}"><voice name="${xmlEscape(voice)}"><prosody rate="${xmlEscape(rate)}" pitch="${xmlEscape(pitch)}" volume="${xmlEscape(volume)}">${xmlEscape(text)}</prosody></voice></speak>`;

@@ -138,8 +138,8 @@ window.TTS = (() => {
 
   // ---------- 逐句跟读高亮 ----------
   // 朗读到哪一句，就把那句淡淡地铺一层底色并滚到视野中央（卡拉OK跟读）。
-  // 句级时间无法从整段音频里精确拿到，按「段内非空白字符占比」推算当前句——
-  // 语速近似均匀，误差半句以内；DOM 映射用 job 级缓存的归一化索引，每帧只做查表。
+  // 优先使用 Edge 随音频返回的句首时间戳；旧服务端或异常缺失时才按字符占比兜底。
+  // DOM 映射用 job 级缓存的归一化索引，每帧只做查表。
   let karaokeKey = '';   // 'chunk:unit'，句没变不重绘
   let domCursor = 0;     // 平坦文本单调游标：顺序朗读时消歧重复句子；seek 回跳则全局重找
 
@@ -185,6 +185,27 @@ window.TTS = (() => {
     return range;
   }
 
+  function pickKaraokeUnit(timings, lens, elapsed, duration) {
+    // 精确路径：Edge 给出的句首音频时间。高亮只在下一句真正开口时推进。
+    if (timings?.length === lens.length) {
+      let pick = 0;
+      for (let u = 1; u < timings.length; u++) {
+        if (elapsed < timings[u].offset) break;
+        pick = u;
+      }
+      return pick;
+    }
+    // 兼容旧服务端或边界缺失的响应，才退回字符占比估算。
+    const total = lens.reduce((sum, n) => sum + n, 0);
+    const target = Math.min(1, Math.max(0, elapsed / Math.max(duration, .001))) * total;
+    let acc = 0;
+    for (let u = 0; u < lens.length; u++) {
+      acc += lens[u];
+      if (target <= acc) return u;
+    }
+    return Math.max(0, lens.length - 1);
+  }
+
   function updateKaraoke() {
     const j = job;
     if (!j || j.state !== 'playing' || !j.domIndex) return;
@@ -193,14 +214,11 @@ window.TTS = (() => {
     const x = j.timeline.find(t => t.generation === j.generation && now >= t.start && now < t.end);
     if (!x) return;
     const index = x.index;
-    const within = Math.min(1, Math.max(0, (x.offset + now - x.start) / x.duration));
+    const elapsed = x.offset + now - x.start;
+    const within = Math.min(1, Math.max(0, elapsed / x.duration));
     const lens = j.unitLens[index];
     if (!lens || !lens.length) return;
-    let acc = 0, pick = lens.length - 1;
-    for (let u = 0; u < lens.length; u++) {
-      acc += lens[u];
-      if (within * j.unitTotals[index] <= acc) { pick = u; break; }
-    }
+    const pick = pickKaraokeUnit(j.sentenceTimings[index], lens, elapsed, x.duration);
     const key = `${index}:${pick}`;
     if (key === karaokeKey) return;
     // 先映射句子；含公式/表格占位等映射不上时，退回整段范围（至少跟到段）
@@ -226,14 +244,32 @@ window.TTS = (() => {
       try { msg = (await r.json()).error || msg; } catch {}
       throw new Error(msg);
     }
-    return r.arrayBuffer();
+    const packet = await r.arrayBuffer();
+    if (!r.headers.get('Content-Type')?.includes('application/vnd.learnornot.tts')) {
+      return { audio: packet, sentenceTimings: [] }; // 兼容热更新期间仍在运行的旧后端
+    }
+    if (packet.byteLength < 4) throw new Error('语音响应格式损坏');
+    const metadataLength = new DataView(packet, 0, 4).getUint32(0, false);
+    if (metadataLength > packet.byteLength - 4) throw new Error('语音响应格式损坏');
+    let metadata;
+    try {
+      metadata = JSON.parse(new TextDecoder().decode(packet.slice(4, 4 + metadataLength)));
+    } catch {
+      throw new Error('语音时间信息解析失败');
+    }
+    const sentenceTimings = (metadata.sentences || []).map(pair => ({
+      offset: Number(pair?.[0]) / 10_000_000,
+      duration: Number(pair?.[1]) / 10_000_000,
+    })).filter(x => Number.isFinite(x.offset) && Number.isFinite(x.duration) && x.offset >= 0 && x.duration >= 0);
+    return { audio: packet.slice(4 + metadataLength), sentenceTimings };
   }
 
   function ensureBuffer(j, i) {
     if (!j.buffers[i]) {
       j.buffers[i] = fetchSynth(j.chunks[i])
-        .then(ab => ac.decodeAudioData(ab))
-        .then(buf => {
+        .then(async ({ audio, sentenceTimings }) => {
+          const buf = await ac.decodeAudioData(audio);
+          j.sentenceTimings[i] = sentenceTimings;
           j.durations[i] = buf.duration;
           j.ready[i] = true;
           return buf;
@@ -336,13 +372,12 @@ window.TTS = (() => {
     for (const w of weights) prefixWeights.push(prefixWeights[prefixWeights.length - 1] + w);
     // 每段按 chunk 组装时的 '\n' 切回句子单元，记录各句归一化长度（供逐句高亮推算）
     const unitLens = chunks.map(c => c.split('\n').filter(Boolean).map(u => Math.max(1, normText(u).length)));
-    const unitTotals = unitLens.map(a => a.reduce((x, y) => x + y, 0));
     job = {
       chunks, rootEl, weights, prefixWeights, totalWeight: prefixWeights.at(-1),
-      buffers: [], durations: [], ready: [], sources: new Set(), timeline: [],
+      buffers: [], durations: [], ready: [], sentenceTimings: [], sources: new Set(), timeline: [],
       cancelled: false, state: 'loading', audible: 0, total: chunks.length,
       generation: 1, progress: 0, seekWaiting: false,
-      unitLens, unitTotals, domIndex: buildDomIndex(rootEl), onEnded,
+      unitLens, domIndex: buildDomIndex(rootEl), onEnded,
     };
     updateUI();
     startProgressLoop();
@@ -510,5 +545,9 @@ window.TTS = (() => {
     localStorage.setItem(LS_KEY, JSON.stringify(settings));
   }
 
-  return { bindLesson, stop, start, togglePause, preview, getSettings, saveSettings, VOICES, RATES, isActive: () => !!job };
+  return {
+    bindLesson, stop, start, togglePause, preview, getSettings, saveSettings, VOICES, RATES,
+    isActive: () => !!job,
+    ...(window.__LEARNORNOT_TEST__ ? { _pickKaraokeUnit: pickKaraokeUnit } : {}),
+  };
 })();
