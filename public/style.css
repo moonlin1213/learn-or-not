@@ -683,7 +683,22 @@ details.card > summary,
 .chat-msg.assistant .bubble.err { color: var(--rose-deep); border-color: var(--rose-soft); }
 .chat-msg .bubble.markdown p { margin: .3em 0; }
 .chat-msg .bubble.markdown h1, .chat-msg .bubble.markdown h2, .chat-msg .bubble.markdown h3 { font-size: .95rem; margin: .6em 0 .3em; }
-.chat-msg.typing .bubble { color: var(--ink-faint); letter-spacing: 4px; }
+.chat-msg.typing .bubble {
+  display: flex; align-items: center; gap: 9px;
+  color: var(--ink-faint); font-size: .79rem; letter-spacing: .04em;
+}
+.chat-msg.typing .bubble::before {
+  content: ''; width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%;
+  background: var(--rose); opacity: .55;
+  animation: chat-waiting-pulse 1.4s var(--ease) infinite;
+}
+@keyframes chat-waiting-pulse {
+  0%, 100% { opacity: .32; transform: scale(.82); }
+  50% { opacity: .8; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-msg.typing .bubble::before { animation: none; }
+}
 .msg-model { font-size: .68rem; color: var(--ink-faint); margin-top: 3px; letter-spacing: .5px; }
 
 .chat-input-row {

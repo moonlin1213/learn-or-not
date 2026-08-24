@@ -2363,6 +2363,36 @@ const CHAT_MODES = [
 ];
 const chatModeById = id => CHAT_MODES.find(m => m.id === id) || CHAT_MODES[0];
 
+// 回答尚未开始时给用户一个有生命感、但不喧闹的老师状态；每次轮换都避开上一条。
+const CHAT_WAITING_STATES = Object.freeze([
+  '老师正在赶来……',
+  '老师正在想……',
+  '老师正在打字……',
+  '老师正在翻书……',
+]);
+
+function createChatWaitingStatus(bubble, random = Math.random) {
+  if (!bubble) return () => {};
+  let previous = -1;
+  let stopped = false;
+  const paint = () => {
+    if (stopped || !bubble.isConnected) return;
+    const count = CHAT_WAITING_STATES.length;
+    const next = previous < 0
+      ? Math.floor(random() * count)
+      : (previous + 1 + Math.floor(random() * (count - 1))) % count;
+    previous = next;
+    bubble.textContent = CHAT_WAITING_STATES[next];
+  };
+  paint();
+  const timer = setInterval(paint, 2200);
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    clearInterval(timer);
+  };
+}
+
 const chatState = {
   open: localStorage.getItem('learnloop.chatOpen') === '1',
   model: JSON.parse(localStorage.getItem('learnloop.chatModel') || 'null'),
@@ -2650,11 +2680,26 @@ async function sendChat() {
   $('#chat-quote')?.classList.add('hidden');
   $('.chat-empty', box)?.remove();
   box.insertAdjacentHTML('beforeend', chatBubble({ role: 'user', content: msg, selection }));
-  box.insertAdjacentHTML('beforeend', `<div class="chat-msg assistant typing" id="chat-typing"><div class="bubble">…</div></div>`);
+  box.insertAdjacentHTML('beforeend', `<div class="chat-msg assistant typing" id="chat-typing" role="status" aria-live="polite" aria-label="等待老师回复"><div class="bubble"></div></div>`);
   box.scrollTop = box.scrollHeight;
   const ctx = chatContext();
   const isCompanion = chatState.model?.provider_id === 'companion';
   const compName = chatState.companion?.name || '伙伴';
+  const typing = $('#chat-typing');
+  const bubble = typing?.querySelector('.bubble');
+  const stopWaiting = createChatWaitingStatus(bubble);
+  let answerStarted = false;
+  const beginAnswer = () => {
+    if (answerStarted) return;
+    answerStarted = true;
+    stopWaiting();
+    typing?.classList.remove('typing');
+    typing?.removeAttribute('role');
+    typing?.removeAttribute('aria-live');
+    typing?.removeAttribute('aria-label');
+    bubble?.classList.add('markdown');
+    if (bubble) bubble.textContent = '';
+  };
   try {
     const payload = { message: msg, selection, provider_id: chatState.model?.provider_id, model: chatState.model?.model };
     if (isCompanion) {
@@ -2665,10 +2710,6 @@ async function sendChat() {
     }
     if (ctx.type === 'book') payload.book_id = ctx.id;
     const url = ctx.type === 'lesson' ? `/api/lessons/${ctx.id}/chat` : '/api/chat';
-    const typing = $('#chat-typing');
-    const bubble = typing?.querySelector('.bubble');
-    bubble?.classList.add('markdown');
-    if (bubble) bubble.textContent = '';
     let answer = '';
     let errMsg = '';
     let modelLabel = '';
@@ -2705,17 +2746,21 @@ async function sendChat() {
         if (ev.error) { errMsg = ev.error; }
         else if (typeof ev.content === 'string') {
           answer = ev.content;
+          if (answer) beginAnswer();
           paintThrottled();
         }
         if (ev.model_label) modelLabel = ev.model_label;
-        if (ev.done && ev.answer) answer = ev.answer;
+        if (ev.done && ev.answer) {
+          answer = ev.answer;
+          beginAnswer();
+        }
       }
     }
     if (errMsg) throw new Error(errMsg);
     if (!answer) throw new Error(isCompanion ? `${compName}没有回话` : '老师没有回话');
+    beginAnswer();
     if (typing) {
       typing.removeAttribute('id');
-      typing.classList.remove('typing');
       if (bubble) bubble.innerHTML = md(answer);
       typing.insertAdjacentHTML('beforeend', `<div class="msg-model">${esc(modelLabel || (isCompanion ? `${compName} · 陪伴` : ''))}</div>`);
       renderMath(typing);
@@ -2723,6 +2768,8 @@ async function sendChat() {
   } catch (e) {
     $('#chat-typing')?.remove();
     box.insertAdjacentHTML('beforeend', `<div class="chat-msg assistant"><div class="bubble err">✕ ${esc(e.message)}</div></div>`);
+  } finally {
+    stopWaiting();
   }
   box.scrollTop = box.scrollHeight;
   chatState.sending = false;
