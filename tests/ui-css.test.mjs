@@ -37,6 +37,22 @@ test('subscription settings offer only platform-specific local credential import
   assert.doesNotMatch(appJs, /用官方 OAuth 连接现有订阅/);
 });
 
+test('teacher chat shows a rotating waiting state until the first reply content arrives', () => {
+  for (const state of ['老师正在赶来……', '老师正在想……', '老师正在打字……', '老师正在翻书……']) {
+    assert.match(appJs, new RegExp(state));
+  }
+  assert.match(appJs, /function createChatWaitingStatus\(bubble, random = Math\.random\)/);
+  assert.match(appJs, /setInterval\(paint, 2200\)/);
+  assert.match(appJs, /previous \+ 1 \+ Math\.floor\(random\(\) \* \(count - 1\)\)/);
+  assert.match(appJs, /id="chat-typing" role="status" aria-live="polite" aria-label="等待老师回复"/);
+  assert.match(appJs, /if \(answer\) beginAnswer\(\);/);
+  assert.match(appJs, /if \(ev\.done && ev\.answer\) \{[\s\S]*?beginAnswer\(\);/);
+  assert.match(appJs, /finally \{\s*stopWaiting\(\);\s*\}/);
+  assert.match(css, /\.chat-msg\.typing \.bubble::before/);
+  assert.match(css, /@keyframes chat-waiting-pulse/);
+  assert.match(css, /prefers-reduced-motion: reduce[\s\S]*?\.chat-msg\.typing \.bubble::before \{ animation: none; \}/);
+});
+
 test('lesson TTS exposes a styled progress control with real audio seeking', () => {
   assert.match(appJs, /id="tts-progress"[^>]*type="range"/);
   assert.match(appJs, /id="tts-percent"/);
