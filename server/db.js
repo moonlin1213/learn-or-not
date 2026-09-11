@@ -145,7 +145,37 @@ CREATE TABLE IF NOT EXISTS focus_sessions (
   completed INTEGER DEFAULT 1,     -- 1=完整番茄 0=手动提前结束
   created_at TEXT DEFAULT (datetime('now','localtime'))
 );
+CREATE TABLE IF NOT EXISTS analyses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_type TEXT NOT NULL DEFAULT 'github',
+  source TEXT NOT NULL,
+  note TEXT,
+  title TEXT,
+  status TEXT NOT NULL DEFAULT 'running',  -- running | done | failed
+  result TEXT,
+  content TEXT,
+  book_id INTEGER REFERENCES books(id) ON DELETE SET NULL,
+  error TEXT,
+  created_at TEXT DEFAULT (datetime('now','localtime')),
+  updated_at TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS comparisons (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  material_ids TEXT NOT NULL DEFAULT '[]',
+  question TEXT,
+  title TEXT,
+  status TEXT NOT NULL DEFAULT 'running',  -- running | done | failed
+  result TEXT,
+  error TEXT,
+  created_at TEXT DEFAULT (datetime('now','localtime')),
+  updated_at TEXT DEFAULT (datetime('now','localtime'))
+);
 `);
+
+// 分析桌早期版本没有保留原材料与课程去向；原地补列，不重建用户数据。
+const analysisColumns = new Set(db.prepare('PRAGMA table_info(analyses)').all().map(column => column.name));
+if (!analysisColumns.has('content')) db.exec('ALTER TABLE analyses ADD COLUMN content TEXT');
+if (!analysisColumns.has('book_id')) db.exec('ALTER TABLE analyses ADD COLUMN book_id INTEGER REFERENCES books(id) ON DELETE SET NULL');
 
 // 迁移：chat_messages.book_id 改为可空（支持无教材的全局聊天）
 try {
@@ -497,6 +527,30 @@ export const store = {
   getWeeklyReport: (weekStart) => prep('gwr', 'SELECT * FROM weekly_reports WHERE week_start=?').get(weekStart),
   listWeeklyReports: () => prep('lwr', 'SELECT * FROM weekly_reports ORDER BY week_start DESC').all(),
 
+  // 分析桌：与教材/课程完全分开，只保存一次性材料分析
+  listAnalyses: () => prep('la', 'SELECT * FROM analyses ORDER BY id DESC').all(),
+  getAnalysis: (id) => prep('ga', 'SELECT * FROM analyses WHERE id=?').get(id),
+  addAnalysis: (a) => prep('aa', `INSERT INTO analyses (source_type,source,note,title,status)
+    VALUES (?,?,?,?,?)`).run(a.source_type || 'github', a.source, a.note || '', a.title || '', a.status || 'running'),
+  finishAnalysis: (id, title, result, content) => prep('fa', `UPDATE analyses
+    SET title=?,result=?,content=?,error=NULL,status='done',updated_at=datetime('now','localtime') WHERE id=?`).run(title || '', result || '', content || '', id),
+  failAnalysis: (id, error) => prep('fla', `UPDATE analyses
+    SET error=?,status='failed',updated_at=datetime('now','localtime') WHERE id=?`).run(error || '分析失败', id),
+  linkAnalysisBook: (id, bookId) => prep('lab', `UPDATE analyses
+    SET book_id=?,updated_at=datetime('now','localtime') WHERE id=?`).run(bookId, id),
+  deleteAnalysis: (id) => prep('da', 'DELETE FROM analyses WHERE id=?').run(id),
+
+  // 横向分析：引用若干独立材料，不改变原材料，也不自动生成课程
+  listComparisons: () => prep('lc', 'SELECT * FROM comparisons ORDER BY id DESC').all(),
+  getComparison: (id) => prep('gc', 'SELECT * FROM comparisons WHERE id=?').get(id),
+  addComparison: (c) => prep('ac', `INSERT INTO comparisons (material_ids,question,title,status)
+    VALUES (?,?,?,?)`).run(JSON.stringify(c.material_ids || []), c.question || '', c.title || '', c.status || 'running'),
+  finishComparison: (id, title, result) => prep('fc', `UPDATE comparisons
+    SET title=?,result=?,error=NULL,status='done',updated_at=datetime('now','localtime') WHERE id=?`).run(title || '', result || '', id),
+  failComparison: (id, error) => prep('flc', `UPDATE comparisons
+    SET error=?,status='failed',updated_at=datetime('now','localtime') WHERE id=?`).run(error || '横向分析失败', id),
+  deleteComparison: (id) => prep('dc', 'DELETE FROM comparisons WHERE id=?').run(id),
+
   // settings
   getSetting: (key) => prep('gs', 'SELECT value FROM settings WHERE key=?').get(key)?.value,
   setSetting: (key, value) => prep('ss', 'INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key, String(value)),
@@ -505,7 +559,7 @@ export const store = {
 // ---------- 备份 / 恢复 ----------
 const BACKUP_TABLES = ['providers', 'books', 'modules', 'lessons', 'qa', 'wrong_questions',
   'reviews', 'chat_sessions', 'chat_messages', 'settings', 'study_time', 'highlights',
-  'weekly_reports', 'focus_sessions'];
+  'weekly_reports', 'focus_sessions', 'analyses', 'comparisons'];
 const LOCAL_SETTING_PREFIXES = ['oauth_auto_import_disabled_'];
 const isLocalOnlySetting = key => LOCAL_SETTING_PREFIXES.some(prefix => String(key || '').startsWith(prefix));
 

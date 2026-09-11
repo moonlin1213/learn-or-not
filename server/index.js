@@ -14,6 +14,7 @@ import { exportToObsidian, obsidianStatus } from './exporter.js';
 import { companionStatus, companionChat, companionConfig, companionConfigured, LOCAL_PRESET } from './companion.js';
 import { acceptsSpeechEnvelope, speechEnvelopeParts, synthesizeSpeech, TTS_ENVELOPE_TYPE } from './tts.js';
 import { oauthStatus, autoImportDshOAuth, reconcileOAuthProviders, startOAuthLogin, cancelOAuthLogin, logoutOAuth, importOAuthFromDsh } from './oauth.js';
+import { analyzeDocument, analyzeGitHub, analyzeText, analyzeWebPage, compareMaterials, parseGitHubUrl } from './analysis.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -115,6 +116,8 @@ function parseMultipart(req) {
   return new Promise((resolve, reject) => {
     const bb = busboy({ headers: req.headers, defParamCharset: 'utf8', limits: { fileSize: 200 * 1024 * 1024, files: 1 } }); // 浏览器按 UTF-8 发文件名，默认 latin1 会乱码
     let filePromise = null;
+    const fields = {};
+    bb.on('field', (name, value) => { fields[name] = value; });
     bb.on('file', (name, file, info) => {
       filePromise = new Promise((res2, rej2) => {
         const safe = `${Date.now()}-${(info.filename || 'upload').replace(/[^\w.一-龥-]/g, '_')}`;
@@ -127,7 +130,7 @@ function parseMultipart(req) {
       });
     });
     bb.on('error', reject);
-    bb.on('finish', () => filePromise ? filePromise.then(resolve, reject) : reject(new Error('没有收到文件')));
+    bb.on('finish', () => filePromise ? filePromise.then(file => resolve({ ...file, fields }), reject) : reject(new Error('没有收到文件')));
     req.pipe(bb);
   });
 }
@@ -164,6 +167,132 @@ async function parseDocumentBg(filePath, format, log) {
 
 // 书籍
 route('GET', '/api/books', async () => store.listBooks());
+
+// 材料桌：任何东西先形成独立分析笔记；只有用户明确选择后才进入课程表。
+route('GET', '/api/analyses', async () => store.listAnalyses());
+route('GET', '/api/analyses/:id', async (req, { id }) => {
+  const item = store.getAnalysis(Number(id));
+  if (!item) throw Object.assign(new Error('分析笔记不存在'), { code: 404 });
+  return item;
+});
+route('POST', '/api/analyses', async (req, _p, body) => {
+  const source = String(body.source || '').trim();
+  const text = String(body.text || '').trim();
+  const note = String(body.note || '').trim();
+  let sourceType;
+  let title;
+  let runner;
+  if (text) {
+    sourceType = 'text';
+    title = text.split(/\r?\n/)[0].slice(0, 80) || '一段文字';
+    runner = log => analyzeText({ text, note, title, onLog: log });
+  } else {
+    let url;
+    try { url = new URL(source); } catch { throw Object.assign(new Error('先放一个完整的网址，或切到“粘贴文字”'), { code: 400 }); }
+    if (['github.com', 'www.github.com'].includes(url.hostname.toLowerCase())) {
+      const parsed = parseGitHubUrl(source);
+      sourceType = 'github';
+      title = `${parsed.owner}/${parsed.repo}`;
+      runner = log => analyzeGitHub({ source: parsed.canonical, note, onLog: log });
+    } else {
+      sourceType = 'web';
+      title = url.hostname;
+      runner = log => analyzeWebPage({ source, note, onLog: log });
+    }
+  }
+  const analysisId = Number(store.addAnalysis({ source_type: sourceType, source, note, title }).lastInsertRowid);
+  const job = runJob(`分析 ${title}`, async log => {
+    try {
+      const result = await runner(log);
+      store.finishAnalysis(analysisId, result.title, result.result, result.content);
+      return { analysisId, ...result };
+    } catch (error) {
+      store.failAnalysis(analysisId, error.message);
+      throw error;
+    }
+  });
+  return { jobId: job.id, analysisId };
+});
+route('POST', '/api/analyses/upload', async (req) => {
+  const file = await parseMultipart(req);
+  const format = detectFormat(file.filename);
+  const title = path.basename(file.filename, path.extname(file.filename));
+  const note = String(file.fields?.note || '').trim();
+  const analysisId = Number(store.addAnalysis({ source_type: 'document', source: file.filename, title, note }).lastInsertRowid);
+  const job = runJob(`分析文件《${title}》`, async log => {
+    try {
+      const sizeMb = (fs.statSync(file.path).size / 1048576).toFixed(1);
+      log(`正在解析 ${format.toUpperCase()}（${sizeMb}MB）`);
+      const text = await parseDocumentBg(file.path, format, log);
+      if (!text || text.trim().length < 50) throw new Error('解析出的文字太少，可能是扫描版 PDF（图片型）或文件损坏');
+      log(`解析完成，约 ${Math.round(text.length / 1000)}k 字`);
+      const result = await analyzeDocument({ source: file.filename, title, text, note, onLog: log });
+      store.finishAnalysis(analysisId, result.title, result.result, result.content);
+      return { analysisId, ...result };
+    } catch (error) {
+      store.failAnalysis(analysisId, error.message);
+      throw error;
+    }
+  });
+  return { jobId: job.id, analysisId };
+});
+route('POST', '/api/analyses/:id/course', async (req, { id }) => {
+  const analysis = store.getAnalysis(Number(id));
+  if (!analysis) throw Object.assign(new Error('这份材料不存在'), { code: 404 });
+  if (analysis.status !== 'done' || !analysis.content) throw Object.assign(new Error('先等分析完成，再决定要不要做成课程'), { code: 409 });
+  if (analysis.book_id) return { jobId: null, bookId: analysis.book_id };
+  const bookId = Number(store.addBook({ title: analysis.title || '未命名材料', filename: analysis.source, format: analysis.source_type, status: 'parsed' }).lastInsertRowid);
+  fs.writeFileSync(path.join(TEXTS_DIR, `${bookId}.txt`), analysis.content);
+  store.linkAnalysisBook(analysis.id, bookId);
+  const job = runJob(`把《${analysis.title || '这份材料'}》做成课程`, async log => {
+    try {
+      return await generateOutline(bookId, log);
+    } catch (error) {
+      store.setBookStatus(bookId, 'failed', error.message || '课程生成失败');
+      throw error;
+    }
+  });
+  return { jobId: job.id, bookId };
+});
+route('DELETE', '/api/analyses/:id', async (req, { id }) => {
+  store.deleteAnalysis(Number(id));
+  return { ok: true };
+});
+route('GET', '/api/comparisons', async () => store.listComparisons().map(item => {
+  let ids = [];
+  try { ids = JSON.parse(item.material_ids || '[]'); } catch { /* keep empty */ }
+  return { ...item, material_ids: ids, materials: ids.map(id => store.getAnalysis(Number(id))).filter(Boolean).map(material => ({ id: material.id, title: material.title, source_type: material.source_type })) };
+}));
+route('GET', '/api/comparisons/:id', async (req, { id }) => {
+  const item = store.getComparison(Number(id));
+  if (!item) throw Object.assign(new Error('横向分析不存在'), { code: 404 });
+  return item;
+});
+route('POST', '/api/comparisons', async (req, _p, body) => {
+  const ids = [...new Set((body.material_ids || []).map(Number).filter(Number.isInteger))];
+  if (ids.length < 2 || ids.length > 6) throw Object.assign(new Error('请选择 2 到 6 份材料'), { code: 400 });
+  const materials = ids.map(id => store.getAnalysis(id));
+  if (materials.some(item => !item)) throw Object.assign(new Error('有一份材料已经不在桌上了'), { code: 404 });
+  if (materials.some(item => item.status !== 'done')) throw Object.assign(new Error('请等选中的材料都分析完成'), { code: 409 });
+  const question = String(body.question || '').trim();
+  const title = materials.map(item => item.title || item.source).join(' × ').slice(0, 160);
+  const comparisonId = Number(store.addComparison({ material_ids: ids, question, title }).lastInsertRowid);
+  const job = runJob(`横向分析 ${materials.length} 份材料`, async log => {
+    try {
+      const result = await compareMaterials({ materials, question, onLog: log });
+      store.finishComparison(comparisonId, result.title, result.result);
+      return { comparisonId, ...result };
+    } catch (error) {
+      store.failComparison(comparisonId, error.message);
+      throw error;
+    }
+  });
+  return { jobId: job.id, comparisonId };
+});
+route('DELETE', '/api/comparisons/:id', async (req, { id }) => {
+  store.deleteComparison(Number(id));
+  return { ok: true };
+});
 route('POST', '/api/upload', async (req) => {
   const file = await parseMultipart(req);
   const format = detectFormat(file.filename);
