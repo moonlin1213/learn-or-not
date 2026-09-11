@@ -301,6 +301,7 @@ async function render() {
   window.TTS?.stop(); // 翻页即停止朗读（音频流与 DOM 无关，主动停避免“幽灵声音”）
   try {
     if (view === 'shelf') await renderShelf();
+    else if (view === 'analysis') await renderAnalysis();
     else if (view === 'book') await renderBook(id);
     else if (view === 'lesson') await renderLesson(id);
     else if (view === 'reviews') await renderReviews();
@@ -330,6 +331,291 @@ async function refreshReviewBadge() {
     b.textContent = count > 99 ? '99+' : count;
     b.classList.toggle('hidden', !count);
   } catch { /* ignore */ }
+}
+
+function compactNote(text, empty = '还没有写下摘要') {
+  const plain = String(text || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[#>*_`|\[\]()~-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return plain ? `${plain.slice(0, 138)}${plain.length > 138 ? '…' : ''}` : empty;
+}
+
+// ---------- 材料桌：任何东西先看明白，再决定去向 ----------
+async function renderAnalysis() {
+  const [items, comparisons] = await Promise.all([api('/api/analyses'), api('/api/comparisons')]);
+  if (!(state.analysisSelection instanceof Set)) state.analysisSelection = new Set();
+  const availableIds = new Set(items.filter(item => item.status === 'done').map(item => item.id));
+  state.analysisSelection = new Set([...state.analysisSelection].filter(id => availableIds.has(id)));
+  const kindName = { github: 'GitHub', web: '网页', text: '文字', document: '文件' };
+  const notesOpen = localStorage.getItem('learnloop.materialNotesOpen') === '1';
+  const singleCards = items.map(item => `
+    <article class="card analysis-note compact ${item.status}" data-id="${item.id}">
+      <div class="note-card-summary">
+        <button class="note-card-open" data-note-toggle="analysis-${item.id}" aria-expanded="false">
+          <span class="analysis-source">${esc(kindName[item.source_type] || '材料')}${item.source ? ` · ${esc(item.source.replace(/^https:\/\/github\.com\//, ''))}` : ''}</span>
+          <strong>${esc(item.title || item.source)}</strong>
+          <span class="note-card-preview">${esc(compactNote(item.result, item.status === 'running' ? '正在看这份材料…' : item.error || '这份材料还没有摘要'))}</span>
+        </button>
+        <div class="analysis-note-state">
+          ${item.status === 'done' ? `<button class="material-pick ${state.analysisSelection.has(item.id) ? 'picked' : ''}" data-analysis-pick="${item.id}" aria-pressed="${state.analysisSelection.has(item.id)}"><span></span>${state.analysisSelection.has(item.id) ? '已放上长桌' : '选来比较'}</button>` : ''}
+          <span class="tag ${item.status === 'failed' ? 'red' : item.status === 'done' ? 'green' : ''}">${item.status === 'done' ? '看完了' : item.status === 'failed' ? '没看成' : '正在看'}</span>
+          <span class="note-card-chevron" aria-hidden="true">⌄</span>
+        </div>
+      </div>
+      <div class="analysis-note-body hidden" id="note-analysis-${item.id}">
+        ${item.note ? `<div class="analysis-question">这次想看：${esc(item.note)}</div>` : ''}
+        ${item.result ? `<div class="analysis-result">${md(item.result)}</div>` : ''}
+        ${item.error ? `<div class="analysis-error">${esc(item.error)}</div>` : ''}
+        <div class="analysis-note-foot">
+          <div class="analysis-note-destinations">${/^https?:\/\//.test(item.source || '') ? `<a href="${esc(item.source)}" target="_blank" rel="noreferrer">打开原材料 ↗</a>` : '<span>材料留在本机</span>'}</div>
+          <div class="analysis-note-buttons">
+            ${item.book_id ? `<button class="small" data-analysis-book="${item.book_id}">去课程</button>` : item.status === 'done' ? `<button class="primary small" data-analysis-course="${item.id}">做成课程</button>` : ''}
+            <button class="ghost small" data-analysis-delete="${item.id}">收走这张纸</button>
+          </div>
+        </div>
+      </div>
+    </article>`).join('');
+  const comparisonCards = comparisons.map(item => `
+    <article class="card comparison-note compact ${item.status}" data-comparison-id="${item.id}">
+      <div class="comparison-ribbon">${item.materials.map(material => esc(material.title || '未命名')).join('<i>×</i>')}</div>
+      <div class="note-card-summary">
+        <button class="note-card-open" data-note-toggle="comparison-${item.id}" aria-expanded="false">
+          <span class="analysis-source">横向分析 · ${item.materials.length} 份材料</span>
+          <strong>${esc(item.title || '并排看一看')}</strong>
+          <span class="note-card-preview">${esc(compactNote(item.result, item.status === 'running' ? '正在比较这些材料…' : item.error || '这张长纸还没有摘要'))}</span>
+        </button>
+        <div class="analysis-note-state">
+          <span class="tag ${item.status === 'failed' ? 'red' : item.status === 'done' ? 'green' : ''}">${item.status === 'done' ? '看完了' : item.status === 'failed' ? '没看成' : '正在看'}</span>
+          <span class="note-card-chevron" aria-hidden="true">⌄</span>
+        </div>
+      </div>
+      <div class="analysis-note-body hidden" id="note-comparison-${item.id}">
+        ${item.question ? `<div class="analysis-question">这次横着看：${esc(item.question)}</div>` : ''}
+        ${item.result ? `<div class="analysis-result">${md(item.result)}</div>` : ''}
+        ${item.error ? `<div class="analysis-error">${esc(item.error)}</div>` : ''}
+        <div class="analysis-note-foot"><span></span><button class="ghost small" data-comparison-delete="${item.id}">收走这张长纸</button></div>
+      </div>
+    </article>`).join('');
+  app.innerHTML = `
+    <div class="analysis-heading">
+      <div>
+        <h1 class="page-title">材料桌</h1>
+        <p class="page-sub">先把东西摊开看明白。看完以后，再决定要不要把它变成一门课。</p>
+      </div>
+      <div class="analysis-margin-note" aria-hidden="true">先看明白 · 再选去向</div>
+    </div>
+    <section class="card analysis-slip">
+      <div class="analysis-slip-label">放一件东西到桌上</div>
+      <div class="material-tabs" role="tablist" aria-label="材料类型">
+        <button class="active" data-material-mode="link" role="tab">一条链接</button>
+        <button data-material-mode="text" role="tab">一段文字</button>
+        <button data-material-mode="file" role="tab">一个文件</button>
+      </div>
+      <div class="material-pane" data-material-pane="link">
+        <label class="analysis-field">
+          <span>GitHub 仓库或普通网页</span>
+          <input id="analysis-source" type="url" placeholder="https://…" autocomplete="url">
+        </label>
+      </div>
+      <div class="material-pane hidden" data-material-pane="text">
+        <label class="analysis-field">
+          <span>直接贴在这里</span>
+          <textarea id="analysis-text" rows="7" placeholder="一段文章、突然遇到的观点、还没想明白的内容……"></textarea>
+        </label>
+      </div>
+      <div class="material-pane hidden" data-material-pane="file">
+        <div class="material-file-drop" id="analysis-file-drop">
+          <strong id="analysis-file-name">拖一个文件进来，或点击选择</strong>
+          <span>PDF / EPUB / DOCX / Markdown / TXT，200MB 以内</span>
+          <input type="file" id="analysis-file" class="hidden" accept=".pdf,.epub,.docx,.md,.markdown,.txt">
+        </div>
+      </div>
+      <label class="analysis-field">
+        <span>这次想看什么 <i>可不填</i></span>
+        <textarea id="analysis-note" rows="3" placeholder="例如：它到底在解决什么问题？哪些部分值得我们拿来用？"></textarea>
+      </label>
+      <div class="analysis-actions">
+        <span id="analysis-safety-note">先分析，不自动生成课程。</span>
+        <button class="primary" id="analysis-start">放到桌上</button>
+      </div>
+    </section>
+    <section class="notes-cabinet card ${notesOpen ? 'open' : ''}">
+      <button class="notes-cabinet-head" id="notes-drawer-toggle" aria-expanded="${notesOpen}">
+        <span><strong>桌上的笔记</strong><small>${items.length} 张单看 · ${comparisons.length} 张并排</small></span>
+        <i aria-hidden="true">⌄</i>
+      </button>
+      <div class="notes-cabinet-body ${notesOpen ? '' : 'hidden'}" id="notes-drawer-body">
+        <section class="notes-group analysis-notes">
+          <div class="analysis-section-head"><h2>单个分析</h2><span>${items.length} 张</span></div>
+          <div class="comparison-tray ${state.analysisSelection.size >= 2 ? '' : 'hidden'}" id="comparison-tray">
+            <span id="comparison-count">已选 ${state.analysisSelection.size} 份材料</span>
+            <button class="primary small" id="comparison-start">放到同一张长桌上</button>
+          </div>
+          <div id="analysis-list">${singleCards || `<div class="analysis-empty"><span>${glyph('eye')}</span><p>下一次遇到“这个东西好像有点意思”，就先放到桌上。</p></div>`}</div>
+        </section>
+        <section class="notes-group comparison-notes">
+          <div class="analysis-section-head"><h2>并排看过</h2><span>${comparisons.length} 张</span></div>
+          <div id="comparison-list">${comparisonCards || '<div class="notes-group-empty">还没有把几份材料放在一起看过。</div>'}</div>
+        </section>
+      </div>
+    </section>`;
+
+  $$('.analysis-result').forEach(renderMath);
+  $('#notes-drawer-toggle').onclick = () => {
+    const cabinet = $('.notes-cabinet');
+    const body = $('#notes-drawer-body');
+    const open = body.classList.contains('hidden');
+    body.classList.toggle('hidden', !open);
+    cabinet.classList.toggle('open', open);
+    $('#notes-drawer-toggle').setAttribute('aria-expanded', String(open));
+    localStorage.setItem('learnloop.materialNotesOpen', open ? '1' : '0');
+  };
+  $('#notes-drawer-body')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-note-toggle]');
+    if (!button) return;
+    const target = $(`#note-${button.dataset.noteToggle}`);
+    if (!target) return;
+    const open = target.classList.contains('hidden');
+    $$('.analysis-note-body').forEach(body => body.classList.add('hidden'));
+    $$('[data-note-toggle]').forEach(toggle => toggle.setAttribute('aria-expanded', 'false'));
+    $$('.note-card-summary').forEach(summary => summary.classList.remove('open'));
+    if (open) {
+      target.classList.remove('hidden');
+      button.setAttribute('aria-expanded', 'true');
+      button.closest('.note-card-summary').classList.add('open');
+      requestAnimationFrame(() => button.closest('article')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    }
+  });
+  $('#comparison-list')?.addEventListener('click', async event => {
+    const id = Number(event.target.closest('[data-comparison-delete]')?.dataset.comparisonDelete);
+    if (!id) return;
+    if (!confirm('把这张横向分析从桌上收走？')) return;
+    await api(`/api/comparisons/${id}`, { method: 'DELETE' });
+    renderAnalysis();
+  });
+
+  const list = $('#analysis-list');
+
+  let mode = 'link';
+  let chosenFile = null;
+  const chooseMode = next => {
+    mode = next;
+    $$('.material-tabs button').forEach(button => button.classList.toggle('active', button.dataset.materialMode === mode));
+    $$('.material-pane').forEach(pane => pane.classList.toggle('hidden', pane.dataset.materialPane !== mode));
+    $('#analysis-safety-note').textContent = mode === 'link'
+      ? 'GitHub 只读关键文件；网页只读正文。都不会运行代码。'
+      : mode === 'file' ? '文件先解析和分析，不会直接出现在课程书架。' : '文字只留在本机学习数据里。';
+  };
+  $$('.material-tabs button').forEach(button => { button.onclick = () => chooseMode(button.dataset.materialMode); });
+
+  const fileInput = $('#analysis-file');
+  const fileDrop = $('#analysis-file-drop');
+  const setFile = file => {
+    chosenFile = file || null;
+    $('#analysis-file-name').textContent = chosenFile ? chosenFile.name : '拖一个文件进来，或点击选择';
+    fileDrop.classList.toggle('chosen', Boolean(chosenFile));
+  };
+  fileDrop.onclick = () => fileInput.click();
+  fileInput.onchange = () => setFile(fileInput.files[0]);
+  fileDrop.ondragover = event => { event.preventDefault(); fileDrop.classList.add('dragover'); };
+  fileDrop.ondragleave = () => fileDrop.classList.remove('dragover');
+  fileDrop.ondrop = event => {
+    event.preventDefault(); fileDrop.classList.remove('dragover');
+    setFile(event.dataTransfer.files[0]);
+  };
+
+  $('#analysis-start').onclick = async () => {
+    const source = $('#analysis-source').value.trim();
+    const text = $('#analysis-text').value.trim();
+    const note = $('#analysis-note').value.trim();
+    try {
+      let started;
+      if (mode === 'file') {
+        if (!chosenFile) return toast('先选一个文件', true);
+        const form = new FormData();
+        form.append('file', chosenFile);
+        form.append('note', note);
+        started = await api('/api/analyses/upload', { method: 'POST', body: form });
+      } else {
+        if (mode === 'link' && !source) return toast('先放一条链接', true);
+        if (mode === 'text' && !text) return toast('先贴一段文字', true);
+        started = await api('/api/analyses', { method: 'POST', body: { source: mode === 'link' ? source : '', text: mode === 'text' ? text : '', note } });
+      }
+      showJobModal('正在把材料摊开来看…', started.jobId, err => {
+        if (err) toast(err.message, true);
+        else toast('分析笔记放到桌上了');
+        localStorage.setItem('learnloop.materialNotesOpen', '1');
+        renderAnalysis();
+      });
+    } catch (error) { toast(error.message, true); }
+  };
+  list.onclick = async event => {
+    const pickId = Number(event.target.closest('[data-analysis-pick]')?.dataset.analysisPick);
+    if (pickId) {
+      if (state.analysisSelection.has(pickId)) state.analysisSelection.delete(pickId);
+      else if (state.analysisSelection.size < 6) state.analysisSelection.add(pickId);
+      else return toast('一张长桌最多放 6 份材料', true);
+      const button = event.target.closest('[data-analysis-pick]');
+      const picked = state.analysisSelection.has(pickId);
+      button.classList.toggle('picked', picked);
+      button.setAttribute('aria-pressed', String(picked));
+      button.lastChild.textContent = picked ? '已放上长桌' : '选来比较';
+      $('#comparison-count').textContent = `已选 ${state.analysisSelection.size} 份材料`;
+      $('#comparison-tray').classList.toggle('hidden', state.analysisSelection.size < 2);
+      return;
+    }
+    const bookId = Number(event.target.dataset.analysisBook);
+    if (bookId) { location.hash = `#/book/${bookId}`; return; }
+    const courseId = Number(event.target.dataset.analysisCourse);
+    if (courseId) {
+      const { jobId, bookId: createdBook } = await api(`/api/analyses/${courseId}/course`, { method: 'POST', body: {} });
+      if (!jobId) { location.hash = `#/book/${createdBook}`; return; }
+      showJobModal('正在把这份材料做成课程…', jobId, err => {
+        if (err) return toast(err.message, true);
+        toast('课程准备好了');
+        location.hash = `#/book/${createdBook}`;
+      });
+      return;
+    }
+    const deleteId = Number(event.target.dataset.analysisDelete);
+    if (deleteId) {
+      if (!confirm('把这张分析纸从桌上收走？')) return;
+      await api(`/api/analyses/${deleteId}`, { method: 'DELETE' });
+      renderAnalysis();
+    }
+  };
+
+  $('#comparison-start')?.addEventListener('click', () => {
+    const selected = items.filter(item => state.analysisSelection.has(item.id));
+    openModal(`
+      <h3>把 ${selected.length} 份材料铺在一起</h3>
+      <div class="comparison-picked-list">${selected.map(item => `<span>${esc(item.title || item.source)}</span>`).join('')}</div>
+      <label class="analysis-field">
+        <span>这次最想比较什么 <i>可不填</i></span>
+        <textarea id="comparison-question" rows="4" placeholder="例如：它们的差别是什么？哪些可以组合？我们最终该选哪个，或者还应该看什么？"></textarea>
+      </label>
+      <div class="modal-actions">
+        <button class="ghost" id="comparison-cancel">先不比</button>
+        <button class="primary" id="comparison-submit">开始横向分析</button>
+      </div>`);
+    $('#comparison-cancel').onclick = closeModal;
+    $('#comparison-submit').onclick = async () => {
+      const question = $('#comparison-question').value.trim();
+      try {
+        const { jobId } = await api('/api/comparisons', { method: 'POST', body: { material_ids: selected.map(item => item.id), question } });
+        closeModal();
+        showJobModal('正在把几份材料并排铺开…', jobId, err => {
+          if (err) toast(err.message, true);
+          else toast('横向分析放到长桌上了');
+          state.analysisSelection.clear();
+          localStorage.setItem('learnloop.materialNotesOpen', '1');
+          renderAnalysis();
+        });
+      } catch (error) { toast(error.message, true); }
+    };
+  });
 }
 
 // 顶栏主模型徽标：点击弹出选择菜单
